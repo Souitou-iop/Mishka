@@ -12,6 +12,10 @@ import top.yukonga.mishka.data.api.MihomoConnectionManager
 import top.yukonga.mishka.data.api.RuleLatencyTester
 import top.yukonga.mishka.data.database.AppDatabase
 import top.yukonga.mishka.data.repository.OverrideJsonStore
+import top.yukonga.mishka.data.repository.OverrideProfileRepositoryImpl
+import top.yukonga.mishka.data.store.OverrideProfileStore
+import top.yukonga.mishka.data.store.ProfileTransformWriter
+import top.yukonga.mishka.domain.repository.OverrideProfileRepository
 import top.yukonga.mishka.data.repository.ProfileProcessor
 import top.yukonga.mishka.data.repository.SubscriptionProxyResolver
 import top.yukonga.mishka.data.repository.SubscriptionRepositoryImpl
@@ -37,11 +41,16 @@ val dataModule = module {
     single { get<AppDatabase>().selectionDao() }
 
     single { OverrideJsonStore(get(), get()) }
+    single { OverrideProfileStore(get()) }
+    single { ProfileTransformWriter(get(), get()) }
     single { SubscriptionProxyResolver(get(), get()) }
+    single<OverrideProfileRepository> {
+        OverrideProfileRepositoryImpl(get(), get(), get(), get(), get(), get())
+    }
     single { RuleLatencyTester(get()) }
     single { MihomoConnectionManager(get()) }
 
-    single { SubscriptionRepositoryImpl(get(), get(), get(), get(), getOrNull(), get()) }
+    single { SubscriptionRepositoryImpl(get(), get(), get(), get(), getOrNull(), get(), get()) }
     single<SubscriptionRepository> { get<SubscriptionRepositoryImpl>() }
 
     factory {

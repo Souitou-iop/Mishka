@@ -121,6 +121,7 @@ class ProfileWorker : Service() {
             storage = storage,
             fileManager = fileManager,
             scope = scope,
+            database = database,
         )
         val proxyResolver = SubscriptionProxyResolver(storage, overrideStore)
         val processor = ProfileProcessor(

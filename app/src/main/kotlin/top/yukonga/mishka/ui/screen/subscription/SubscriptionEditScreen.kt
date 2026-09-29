@@ -3,8 +3,11 @@ package top.yukonga.mishka.ui.screen.subscription
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,6 +19,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,8 +27,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import top.yukonga.mishka.R
 import top.yukonga.mishka.domain.model.ProfileType
 import top.yukonga.mishka.ui.component.AdaptiveTopAppBar
+import top.yukonga.mishka.ui.component.CardItem
 import top.yukonga.mishka.ui.component.blur.BlurredBar
 import top.yukonga.mishka.ui.component.blur.rememberBlurBackdrop
+import top.yukonga.mishka.ui.component.groupedCardItems
 import top.yukonga.mishka.ui.util.horizontalCutoutPadding
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -40,6 +46,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
+import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -53,6 +60,7 @@ fun SubscriptionEditScreen(
     viewModel: SubscriptionViewModel,
     onBack: () -> Unit = {},
     onSaved: () -> Unit = {},
+    onNavigateOverrides: () -> Unit = {},
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val subscription = uiState.subscriptions.find { it.id == uuid }
@@ -118,7 +126,6 @@ fun SubscriptionEditScreen(
                 .nestedScroll(scrollBehavior.nestedScrollConnection),
             contentPadding = PaddingValues(
                 top = innerPadding.calculateTopPadding(),
-                bottom = 24.dp,
             ),
         ) {
             item {
@@ -195,6 +202,29 @@ fun SubscriptionEditScreen(
                 }
             }
 
+            groupedCardItems(
+                keyPrefix = "subscription_overrides",
+                outerTopPadding = 6.dp,
+                outerBottomPadding = 12.dp,
+                items = listOf(
+                    CardItem("open") {
+                        ArrowPreference(
+                            title = stringResource(R.string.subscription_overrides),
+                            summary = if (subscription.overrideIds.isEmpty()) {
+                                stringResource(R.string.subscription_override_none)
+                            } else {
+                                pluralStringResource(
+                                    R.plurals.subscription_override_count,
+                                    subscription.overrideIds.size,
+                                    subscription.overrideIds.size,
+                                )
+                            },
+                            onClick = onNavigateOverrides,
+                        )
+                    },
+                ),
+            )
+
             item {
                 TextButton(
                     text = stringResource(R.string.common_save),
@@ -215,8 +245,12 @@ fun SubscriptionEditScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 12.dp)
-                        .padding(top = 6.dp, bottom = 16.dp + innerPadding.calculateBottomPadding()),
+                        .padding(bottom = 12.dp),
                 )
+            }
+
+            item(key = "bottom_spacer") {
+                Spacer(Modifier.height(24.dp).navigationBarsPadding())
             }
         }
     }

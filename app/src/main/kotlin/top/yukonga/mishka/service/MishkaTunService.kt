@@ -19,8 +19,9 @@ import kotlinx.coroutines.withContext
 import org.koin.android.ext.android.inject
 import top.yukonga.mishka.MishkaApplication
 import top.yukonga.mishka.R
-import top.yukonga.mishka.data.database.getAppDatabase
 import top.yukonga.mishka.data.repository.OverrideJsonStore
+import top.yukonga.mishka.data.repository.SubscriptionRepositoryImpl
+import top.yukonga.mishka.data.store.ProfileTransformWriter
 import top.yukonga.mishka.domain.model.resolveExternalController
 import top.yukonga.mishka.platform.PlatformStorage
 import top.yukonga.mishka.platform.ProxyServiceBridge
@@ -46,6 +47,8 @@ class MishkaTunService : VpnService() {
 
     // 取 Koin 单例而非自建：store 的内存值是权威值，自建实例读不到 UI 侧刚落的设置
     private val overrideStore: OverrideJsonStore by inject()
+    private val transformWriter: ProfileTransformWriter by inject()
+    private val subscriptionRepository: SubscriptionRepositoryImpl by inject()
     private var tunFd: Int = -1
     private var monitorJob: Job? = null
     private var notificationRefreshJob: Job? = null
@@ -307,8 +310,20 @@ class MishkaTunService : VpnService() {
             val secret = ConfigGenerator.resolveSecret(this@MishkaTunService, userOverride, subscriptionId)
             val extCtl = userOverride.resolveExternalController()
             val viaProxy = storage.getString(StorageKeys.SUBSCRIPTION_UPDATE_VIA_PROXY, "true") == "true"
-            val subMixedPort = subscriptionId?.let {
-                ConfigGenerator.readSubscriptionMixedPort(this@MishkaTunService, it)
+            val transformPlan = try {
+                prepareRuntimeTransform(this@MishkaTunService, subscriptionId, subscriptionRepository, transformWriter)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to prepare subscription transform", e)
+                ProxyServiceBridge.updateState(
+                    ProxyServiceStatus(
+                        ProxyState.Error,
+                        errorMessage = getString(R.string.error_generic_start_failed, e.message ?: e.javaClass.simpleName),
+                        tunMode = TunMode.Vpn,
+                    )
+                )
+                closeTunFd()
+                stopSelf()
+                return@launch
             }
             val overrideFile = RuntimeOverrideBuilder.buildAndWriteForRun(
                 context = this@MishkaTunService,
@@ -316,21 +331,20 @@ class MishkaTunService : VpnService() {
                 tunFd = fd,
                 tunMode = TunMode.Vpn,
                 subscriptionUpdateViaProxy = viaProxy,
-                subscriptionMixedPort = subMixedPort,
+                subscriptionMixedPort = transformPlan.mixedPort,
             )
 
             // 3. 启动 mihomo 核心
-            // age 加密订阅：config 加密落盘，从 DB 读 active 订阅 ageSecretKey 让运行时解密
-            val ageSecretKey = subscriptionId?.let {
-                getAppDatabase(this@MishkaTunService).importedDao().queryByUUID(it)?.ageSecretKey
-            } ?: ""
+            // age 加密订阅：config 加密落盘，密钥与覆写选择来自同一份 imported DB 快照。
             val success = runner.start(
                 subscriptionId = subscriptionId,
                 useRoot = false,
                 overrideJsonPath = overrideFile.absolutePath,
                 secret = secret,
                 externalController = extCtl,
-                ageSecretKey = ageSecretKey,
+                ageSecretKey = transformPlan.ageSecretKey,
+                transformPath = transformPlan.transformPath,
+                preferTransformMixedPort = transformPlan.transformPath != null && viaProxy && userOverride.mixedPort == null,
             )
             if (!success) {
                 val errorMsg = runner.errorMessage.ifBlank { getString(R.string.error_start_failed) }

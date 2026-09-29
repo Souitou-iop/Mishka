@@ -93,6 +93,10 @@ import top.yukonga.mishka.ui.screen.settings.SettingsScreen
 import top.yukonga.mishka.ui.screen.settings.ThemeSettingsScreen
 import top.yukonga.mishka.ui.screen.settings.VpnSettingsScreen
 import top.yukonga.mishka.ui.screen.settings.WifiPolicyScreen
+import top.yukonga.mishka.ui.screen.overrides.OverrideEditScreen
+import top.yukonga.mishka.ui.screen.overrides.OverrideFileEditorScreen
+import top.yukonga.mishka.ui.screen.overrides.OverrideListScreen
+import top.yukonga.mishka.ui.screen.overrides.SubscriptionOverridesScreen
 import top.yukonga.mishka.ui.screen.subscription.SubscriptionAddScreen
 import top.yukonga.mishka.ui.screen.subscription.SubscriptionAddUrlScreen
 import top.yukonga.mishka.ui.screen.subscription.SubscriptionEditScreen
@@ -115,6 +119,7 @@ import top.yukonga.mishka.viewmodel.MetaSettingsViewModel
 import top.yukonga.mishka.viewmodel.NetworkSettingsViewModel
 import top.yukonga.mishka.viewmodel.ProviderViewModel
 import top.yukonga.mishka.viewmodel.ProxyViewModel
+import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
 import top.yukonga.miuix.kmp.basic.FloatingNavigationBar
 import top.yukonga.miuix.kmp.basic.Icon
@@ -184,6 +189,7 @@ fun AppNavigation(
     onThemeConfigChange: (ThemeConfig) -> Unit = {},
     homeViewModel: HomeViewModel? = null,
     subscriptionViewModel: SubscriptionViewModel? = null,
+    overrideProfileViewModel: OverrideProfileViewModel? = null,
     proxyViewModel: ProxyViewModel? = null,
     logViewModel: LogViewModel? = null,
     providerViewModel: ProviderViewModel? = null,
@@ -328,7 +334,45 @@ fun AppNavigation(
                         viewModel = it,
                         onBack = { navigator.pop() },
                         onSaved = { navigator.pop() },
+                        onNavigateOverrides = { navigator.push(Route.SubscriptionOverrides(route.uuid)) },
                     )
+                }
+            }
+            entry<Route.SubscriptionOverrides>(swipeDismiss = swipeDismiss) { route ->
+                if (subscriptionViewModel != null && overrideProfileViewModel != null) {
+                    SubscriptionOverridesScreen(
+                        subscriptionId = route.uuid,
+                        subscriptionViewModel = subscriptionViewModel,
+                        overrideViewModel = overrideProfileViewModel,
+                        onBack = { navigator.pop() },
+                    )
+                }
+            }
+            entry<Route.OverrideList>(swipeDismiss = swipeDismiss) {
+                overrideProfileViewModel?.let { vm ->
+                    OverrideListScreen(
+                        viewModel = vm,
+                        onBack = { navigator.pop() },
+                        onAdd = { navigator.push(Route.OverrideEdit()) },
+                        onEdit = { id -> navigator.push(Route.OverrideEdit(id)) },
+                        onEditFile = { id -> navigator.push(Route.OverrideFileEditor(id)) },
+                    )
+                }
+            }
+            entry<Route.OverrideEdit>(swipeDismiss = swipeDismiss) { route ->
+                overrideProfileViewModel?.let { vm ->
+                    OverrideEditScreen(
+                        overrideId = route.id,
+                        viewModel = vm,
+                        onBack = { navigator.pop() },
+                        onSaved = { navigator.pop() },
+                        onPickFile = { callback -> filePicker?.pickYamlFile(callback) },
+                    )
+                }
+            }
+            entry<Route.OverrideFileEditor>(swipeDismiss = swipeDismiss) { route ->
+                overrideProfileViewModel?.let { vm ->
+                    OverrideFileEditorScreen(route.id, vm, onBack = { navigator.pop() })
                 }
             }
             entry<Route.Log>(swipeDismiss = swipeDismiss) {
@@ -565,6 +609,7 @@ private fun MainPage(
                     onNavigateWifiPolicy = { navigator.push(Route.WifiPolicy) },
                     onNavigateThemeSettings = { navigator.push(Route.ThemeSettings) },
                     onNavigateFileManager = { navigator.push(Route.FileManager) },
+                    onNavigateOverrides = { navigator.push(Route.OverrideList) },
                     onNavigateBackup = { navigator.push(Route.BackupRestore) },
                     onNavigateAbout = { navigator.push(Route.About) },
                     bootStartManager = bootStartManager,

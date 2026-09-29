@@ -577,4 +577,40 @@
     <string name="meta_age_copy_secret">Copy Secret Key</string>
     <string name="meta_age_copy_public">Copy Public Key</string>
     <string name="meta_age_keygen_failed">Failed to generate key pair</string>
+
+    <!-- Subscription overrides -->
+    <string name="settings_overrides">Subscription Overrides</string>
+    <string name="settings_overrides_summary">Manage YAML and JavaScript subscription overrides</string>
+    <string name="override_add">Add Override</string>
+    <string name="override_edit">Edit Override</string>
+    <string name="override_empty">No overrides. Add a local or remote override.</string>
+    <string name="override_source_remote">Remote</string>
+    <string name="override_source_local">Local</string>
+    <string name="override_add_method">Add method</string>
+    <string name="override_method_remote">Remote</string>
+    <string name="override_method_blank">Blank</string>
+    <string name="override_method_local">Import file</string>
+    <string name="override_name">Override name</string>
+    <string name="override_name_placeholder">Enter an override name</string>
+    <string name="override_url">Override URL</string>
+    <string name="override_url_placeholder">Enter an override URL</string>
+    <string name="override_local_file">Local file</string>
+    <string name="override_format">Format</string>
+    <string name="override_move_up">Move up</string>
+    <string name="override_move_down">Move down</string>
+    <string name="override_format_yaml">YAML</string>
+    <string name="override_format_javascript">JavaScript</string>
+    <string name="override_delete_title">Delete override</string>
+    <string name="override_delete_summary">Delete “%1$s”? References in subscriptions will also be removed.</string>
+    <string name="override_error_name_required">Enter an override name.</string>
+    <string name="override_error_invalid_url">Override URL must start with http:// or https://.</string>
+    <string name="override_error_file_required">Choose an override file.</string>
+    <string name="override_error_http_status">Server returned HTTP %1$d</string>
+    <string name="override_update_all_result">Update complete: %1$d succeeded, %2$d failed</string>
+    <string name="subscription_override_none">No overrides selected</string>
+    <plurals name="subscription_override_count">
+        <item quantity="one">%1$d override selected</item>
+        <item quantity="other">%1$d overrides selected</item>
+    </plurals>
+    <string name="subscription_overrides">Overrides</string>
 </resources>

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import top.yukonga.mishka.R
@@ -19,14 +20,27 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 fun RestartRequiredHint(
     modifier: Modifier = Modifier,
 ) {
+    HintCard(
+        text = stringResource(R.string.settings_override_restart_hint),
+        modifier = modifier.padding(top = 12.dp),
+        bottomPadding = 6.dp,
+    )
+}
+
+@Composable
+fun HintCard(
+    text: String,
+    modifier: Modifier = Modifier,
+    bottomPadding: Dp = 12.dp,
+) {
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .padding(top = 12.dp, bottom = 6.dp),
+            .padding(bottom = bottomPadding),
     ) {
         Text(
-            text = stringResource(R.string.settings_override_restart_hint),
+            text = text,
             color = MiuixTheme.colorScheme.onSurfaceVariantSummary,
             fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),

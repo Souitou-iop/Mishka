@@ -54,6 +54,7 @@ import top.yukonga.mishka.viewmodel.MetaSettingsViewModel
 import top.yukonga.mishka.viewmodel.NetworkSettingsViewModel
 import top.yukonga.mishka.viewmodel.ProviderViewModel
 import top.yukonga.mishka.viewmodel.ProxyViewModel
+import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
 
 private const val STATE_DEEPLINK_NONCE = "deeplink_nonce"
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var serviceController: ProxyServiceController
     private lateinit var homeViewModel: HomeViewModel
     private lateinit var subscriptionViewModel: SubscriptionViewModel
+    private lateinit var overrideProfileViewModel: OverrideProfileViewModel
     private lateinit var proxyViewModel: ProxyViewModel
     private lateinit var logViewModel: LogViewModel
     private lateinit var providerViewModel: ProviderViewModel
@@ -195,6 +197,7 @@ class MainActivity : ComponentActivity() {
         externalControlViewModel = get()
         appProxyViewModel = get()
         subscriptionViewModel = get()
+        overrideProfileViewModel = get()
         proxyViewModel = get()
         homeViewModel = get()
 
@@ -242,6 +245,7 @@ class MainActivity : ComponentActivity() {
                 onThemeConfigChange = { themeConfig = it },
                 homeViewModel = homeViewModel,
                 subscriptionViewModel = subscriptionViewModel,
+                overrideProfileViewModel = overrideProfileViewModel,
                 proxyViewModel = proxyViewModel,
                 logViewModel = logViewModel,
                 providerViewModel = providerViewModel,

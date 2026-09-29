@@ -181,7 +181,11 @@ fun FileManagerEditorScreen(
             CompositionLocalProvider(LocalOverscrollFactory provides null) {
                 CodeEditor(
                     controller = controller,
-                    language = if (isYamlPath(relativePath)) EditorLanguage.Yaml else EditorLanguage.PlainText,
+                    language = when {
+                        isYamlPath(relativePath) -> EditorLanguage.Yaml
+                        isJavaScriptPath(relativePath) -> EditorLanguage.JavaScript
+                        else -> EditorLanguage.PlainText
+                    },
                     colors = if (LocalAppDarkMode.current) EditorColors.Default else EditorColors.Light,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -192,7 +196,13 @@ fun FileManagerEditorScreen(
     }
 }
 
-private fun isYamlPath(path: String): Boolean = path.endsWith(".yaml") || path.endsWith(".yml")
+private fun isYamlPath(path: String): Boolean =
+    path.endsWith(".yaml", ignoreCase = true) || path.endsWith(".yml", ignoreCase = true)
+
+private fun isJavaScriptPath(path: String): Boolean =
+    path.endsWith(".js", ignoreCase = true) ||
+        path.endsWith(".mjs", ignoreCase = true) ||
+        path.endsWith(".cjs", ignoreCase = true)
 
 // 仅校验 YAML（config.yaml / .yml / .yaml），其他文件直接写盘。返回 null 表示通过。
 private suspend fun saveWithValidation(

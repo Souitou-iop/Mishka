@@ -75,6 +75,8 @@ class MihomoRunner(private val context: Context) {
         secret: String,
         externalController: String,
         ageSecretKey: String = "",
+        transformPath: String? = null,
+        preferTransformMixedPort: Boolean = false,
     ): Boolean = withContext(Dispatchers.IO) {
         if (isRunning) {
             Log.w(TAG, "mihomo already running")
@@ -114,6 +116,10 @@ class MihomoRunner(private val context: Context) {
                 add("-d"); add(workDir.absolutePath)
                 add("-f"); add(configFile.absolutePath)
                 add("--override-json"); add(overrideJsonPath)
+                if (transformPath != null) {
+                    add("--transform"); add(transformPath)
+                    if (preferTransformMixedPort) add("--prefer-transform-mixed-port")
+                }
                 add("--secret"); add(secret)
                 add("--ext-ctl"); add(externalController)
                 if (ageSecretKey.isNotEmpty()) {

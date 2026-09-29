@@ -35,7 +35,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: mihomo/go.mod
+          go-version-file: app/src/main/native/mishka_core/go.mod
           # 默认缓存键找工作目录根的 go.sum，本仓根目录没有；不指到实际被编译的模块上
           # 就是每次 miss，全量重下 mihomo 的依赖树
           cache-dependency-path: app/src/main/native/mishka_core/go.sum

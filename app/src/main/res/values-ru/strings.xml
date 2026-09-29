@@ -577,4 +577,42 @@
     <string name="meta_age_copy_secret">Копировать секретный ключ</string>
     <string name="meta_age_copy_public">Копировать открытый ключ</string>
     <string name="meta_age_keygen_failed">Не удалось сгенерировать пару ключей</string>
+
+    <!-- Subscription overrides -->
+    <string name="settings_overrides">Переопределения подписок</string>
+    <string name="settings_overrides_summary">Управление YAML и JavaScript переопределениями</string>
+    <string name="override_add">Добавить переопределение</string>
+    <string name="override_edit">Изменить переопределение</string>
+    <string name="override_empty">Нет переопределений. Добавьте локальное или удалённое.</string>
+    <string name="override_source_remote">Удалённое</string>
+    <string name="override_source_local">Локальное</string>
+    <string name="override_add_method">Способ добавления</string>
+    <string name="override_method_remote">Удалённое</string>
+    <string name="override_method_blank">Пустое</string>
+    <string name="override_method_local">Импорт файла</string>
+    <string name="override_name">Имя переопределения</string>
+    <string name="override_name_placeholder">Введите имя</string>
+    <string name="override_url">URL переопределения</string>
+    <string name="override_url_placeholder">Введите URL</string>
+    <string name="override_local_file">Локальный файл</string>
+    <string name="override_format">Формат</string>
+    <string name="override_move_up">Выше</string>
+    <string name="override_move_down">Ниже</string>
+    <string name="override_format_yaml">YAML</string>
+    <string name="override_format_javascript">JavaScript</string>
+    <string name="override_delete_title">Удалить переопределение</string>
+    <string name="override_delete_summary">Удалить «%1$s»? Ссылки в подписках также будут удалены.</string>
+    <string name="override_error_name_required">Введите имя переопределения.</string>
+    <string name="override_error_invalid_url">URL должен начинаться с http:// или https://.</string>
+    <string name="override_error_file_required">Выберите файл переопределения.</string>
+    <string name="override_error_http_status">Сервер вернул HTTP %1$d</string>
+    <string name="override_update_all_result">Обновление завершено: успешно %1$d, ошибок %2$d</string>
+    <string name="subscription_override_none">Переопределения не выбраны</string>
+    <plurals name="subscription_override_count">
+        <item quantity="one">Выбрано %1$d переопределение</item>
+        <item quantity="few">Выбрано %1$d переопределения</item>
+        <item quantity="many">Выбрано %1$d переопределений</item>
+        <item quantity="other">Выбрано %1$d переопределения</item>
+    </plurals>
+    <string name="subscription_overrides">Переопределения</string>
 </resources>

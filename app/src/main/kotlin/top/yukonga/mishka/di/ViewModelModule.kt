@@ -14,6 +14,7 @@ import top.yukonga.mishka.viewmodel.MetaSettingsViewModel
 import top.yukonga.mishka.viewmodel.NetworkSettingsViewModel
 import top.yukonga.mishka.viewmodel.ProviderViewModel
 import top.yukonga.mishka.viewmodel.ProxyViewModel
+import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
 
 /**
@@ -33,6 +34,7 @@ val viewModelModule = module {
         )
     }
     single { SubscriptionViewModel(get(), get(), get(), get(), androidContext()) }
+    single { OverrideProfileViewModel(get(), get(), get(), androidContext()) }
     single {
         ProxyViewModel(
             selectionDao = get(),

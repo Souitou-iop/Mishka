@@ -22,6 +22,7 @@ import (
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/log"
+	"go.yaml.in/yaml/v3"
 )
 
 //export mihomoEntry
@@ -49,11 +50,15 @@ func runMihomo() int {
 		secret             string
 		externalController string
 		overrideJSON       string
+		transformPath      string
+		preferTransformPort bool
 		ageSecretKey       string
 	)
 	fs.StringVar(&homeDir, "d", "", "set configuration directory")
 	fs.StringVar(&configFile, "f", "", "specify configuration file")
 	fs.StringVar(&overrideJSON, "override-json", "", "path to a JSON file whose fields override the parsed RawConfig")
+	fs.StringVar(&transformPath, "transform", "", "path to a JSON subscription transform applied before parsing")
+	fs.BoolVar(&preferTransformPort, "prefer-transform-mixed-port", false, "let the transformed configuration's mixed-port override the runtime fallback")
 	fs.StringVar(&secret, "secret", "", "override RESTful API secret")
 	fs.StringVar(&externalController, "ext-ctl", "", "override external controller address")
 	fs.StringVar(&ageSecretKey, "age-secret-key", "", "age secret key to decrypt age-armor encrypted configuration")
@@ -112,6 +117,23 @@ func runMihomo() int {
 		options = append(options, hub.WithSecret(secret))
 	}
 
+	if transformPath != "" {
+		if configBytes, err = applyTransformFile(configBytes, transformPath, ageSecretKey); err != nil {
+			log.Fatalln("apply transform: %s", err.Error())
+		}
+		if preferTransformPort {
+			// override.run.json 的默认端口只负责兜底；脚本若显式设置端口，
+			// 在 Parse 完成后、listener 创建前恢复它，且不重复执行脚本。
+			port, portErr := transformedMixedPort(configBytes)
+			if portErr != nil {
+				log.Fatalln("inspect transformed mixed-port: %s", portErr.Error())
+			}
+			if port > 0 {
+				options = append(options, func(cfg *config.Config) { cfg.General.MixedPort = port })
+			}
+		}
+	}
+
 	if err := hub.Parse(configBytes, options...); err != nil {
 		log.Fatalln("Parse config: %s", err.Error())
 	}
@@ -137,4 +159,17 @@ func runMihomo() int {
 			}
 		}
 	}
+}
+
+func transformedMixedPort(configBytes []byte) (int, error) {
+	var config struct {
+		MixedPort int `yaml:"mixed-port"`
+	}
+	if err := yaml.Unmarshal(configBytes, &config); err != nil {
+		return 0, err
+	}
+	if config.MixedPort < 1 || config.MixedPort > 65535 {
+		return 0, nil
+	}
+	return config.MixedPort, nil
 }

@@ -10,6 +10,8 @@ import kotlinx.serialization.json.Json
 import top.yukonga.mishka.data.database.AppDatabase
 import top.yukonga.mishka.data.database.ImportedEntity
 import top.yukonga.mishka.data.database.PendingEntity
+import top.yukonga.mishka.data.database.decodeOverrideIds
+import top.yukonga.mishka.data.database.encodeOverrideIds
 import top.yukonga.mishka.data.database.SelectionEntity
 import top.yukonga.mishka.data.repository.ProfileProcessor
 import top.yukonga.mishka.data.repository.SubscriptionRepositoryImpl
@@ -35,6 +37,8 @@ data class BackupProfile(
     val source: String,
     val userAgent: String = "",
     val ageSecretKey: String = "",
+    val overrideIds: List<String> = emptyList(),
+    val overrideSortPreference: List<String> = emptyList(),
     val interval: Long = 0,
     val upload: Long = 0,
     val download: Long = 0,
@@ -137,6 +141,7 @@ class BackupManager(
                 zip.putEntry(ENTRY_SNAPSHOT, json.encodeToString(snapshot).toByteArray())
                 zipDirIfExists(zip, File(mihomoDir, "imported"), "$ENTRY_FILES_PREFIX/imported")
                 zipDirIfExists(zip, File(mihomoDir, "pending"), "$ENTRY_FILES_PREFIX/pending")
+                zipDirIfExists(zip, File(mihomoDir, OVERRIDES_DIR), "$ENTRY_FILES_PREFIX/$OVERRIDES_DIR")
                 val override = File(mihomoDir, OVERRIDE_FILE)
                 if (override.isFile) zip.putFile("$ENTRY_FILES_PREFIX/$OVERRIDE_FILE", override)
             }
@@ -207,11 +212,13 @@ class BackupManager(
 
     private fun ImportedEntity.toBackup() = BackupProfile(
         uuid, name, type.name, source, userAgent, ageSecretKey,
+        overrideIds.decodeOverrideIds(), overrideSortPreference.decodeOverrideIds(),
         interval, upload, download, total, expire, createdAt,
     )
 
     private fun PendingEntity.toBackup() = BackupProfile(
         uuid, name, type.name, source, userAgent, ageSecretKey,
+        overrideIds.decodeOverrideIds(), overrideSortPreference.decodeOverrideIds(),
         interval, upload, download, total, expire, createdAt,
     )
 
@@ -219,11 +226,19 @@ class BackupManager(
         runCatching { ProfileType.valueOf(type) }.getOrNull()
 
     private fun BackupProfile.toImportedEntity(): ImportedEntity? = profileType()?.let {
-        ImportedEntity(uuid, name, it, source, userAgent, ageSecretKey, interval, upload, download, total, expire, createdAt)
+        ImportedEntity(
+            uuid, name, it, source, userAgent, ageSecretKey,
+            overrideIds.encodeOverrideIds(), overrideSortPreference.encodeOverrideIds(),
+            interval, upload, download, total, expire, createdAt,
+        )
     }
 
     private fun BackupProfile.toPendingEntity(): PendingEntity? = profileType()?.let {
-        PendingEntity(uuid, name, it, source, userAgent, ageSecretKey, interval, upload, download, total, expire, createdAt)
+        PendingEntity(
+            uuid, name, it, source, userAgent, ageSecretKey,
+            overrideIds.encodeOverrideIds(), overrideSortPreference.encodeOverrideIds(),
+            interval, upload, download, total, expire, createdAt,
+        )
     }
 
     private fun ZipOutputStream.putEntry(name: String, data: ByteArray) {
@@ -358,6 +373,7 @@ class BackupManager(
         private const val ENTRY_SNAPSHOT = "backup.json"
         private const val ENTRY_FILES_PREFIX = "files"
         private const val OVERRIDE_FILE = "override.user.json"
+        private const val OVERRIDES_DIR = "overrides"
 
         // 与正式目录同分区，rename 才原子
         private const val RESTORE_STAGING = ".restore"
@@ -365,7 +381,7 @@ class BackupManager(
 
         // WebDAV 收发的中转文件，固定名覆盖式（备份本身就是固定名覆盖式）
         private const val TRANSFER_FILE = "mishka-backup-transfer.zip"
-        private val RESTORE_TARGETS = listOf("imported", "pending", OVERRIDE_FILE)
+        private val RESTORE_TARGETS = listOf("imported", "pending", OVERRIDES_DIR, OVERRIDE_FILE)
 
         /**
          * 不进备份也不从备份恢复的 key，两类语义：

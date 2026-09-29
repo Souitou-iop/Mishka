@@ -57,10 +57,10 @@ object RuntimeOverrideBuilder {
      *
      * mixed-port 决策（决定 mihomo 是否监听 HTTP 代理端口，[SubscriptionProxyResolver] 据此走代理）：
      * 1. 用户 override 显式设置 → 用用户值（覆盖订阅 yaml）
-     * 2. 订阅 yaml 自带 `mixed-port` → 不注入，mihomo 沿用订阅 yaml 原值
-     * 3. [subscriptionUpdateViaProxy] 启用 → 注入 [DEFAULT_MIXED_PORT] 兜底，确保开关稳定生效
-     * 4. 其余情况不注入。调用方需先读订阅 yaml 用 [ConfigGenerator.readSubscriptionMixedPort]
-     *    传入 [subscriptionMixedPort]，避免兜底值覆盖订阅自带的非默认端口。
+     * 2. 无订阅变换且原 YAML 自带 `mixed-port` → 不注入，mihomo 沿用该值
+     * 3. [subscriptionUpdateViaProxy] 启用 → 注入 [DEFAULT_MIXED_PORT] 兜底
+     * 4. 有订阅变换时，此处的默认值只是兜底；runtime 在 `hub.Parse` 前按同一次脚本执行结果
+     *    用 Option 恢复显式 `mixed-port`，避免默认值盖掉脚本设置。
      */
     fun buildAndWriteForRun(
         context: Context,

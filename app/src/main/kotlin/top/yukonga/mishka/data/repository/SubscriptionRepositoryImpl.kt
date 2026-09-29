@@ -1,6 +1,7 @@
 package top.yukonga.mishka.data.repository
 
 import android.util.Log
+import androidx.room3.withWriteTransaction
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
@@ -22,8 +23,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import top.yukonga.mishka.data.database.ImportedDao
 import top.yukonga.mishka.data.database.ImportedEntity
+import top.yukonga.mishka.data.database.AppDatabase
 import top.yukonga.mishka.data.database.PendingDao
 import top.yukonga.mishka.data.database.PendingEntity
+import top.yukonga.mishka.data.database.decodeOverrideIds
+import top.yukonga.mishka.data.database.encodeOverrideIds
 import top.yukonga.mishka.data.database.SelectionDao
 import top.yukonga.mishka.domain.model.ProfileType
 import top.yukonga.mishka.domain.model.Subscription
@@ -59,6 +63,7 @@ class SubscriptionRepositoryImpl(
     private val storage: PlatformStorage,
     private val fileManager: ProfileFileManager? = null,
     private val scope: CoroutineScope,
+    private val database: AppDatabase,
 ) : SubscriptionRepository {
 
     private val profileLock = Mutex()
@@ -145,6 +150,8 @@ class SubscriptionRepositoryImpl(
             source = source,
             userAgent = trimmedUA,
             ageSecretKey = trimmedAge,
+            overrideIds = "",
+            overrideSortPreference = "",
             interval = interval,
             createdAt = Clock.System.now().toEpochMilliseconds(),
         )
@@ -157,6 +164,8 @@ class SubscriptionRepositoryImpl(
             url = source,
             userAgent = trimmedUA,
             ageSecretKey = trimmedAge,
+            overrideIds = persistentListOf(),
+            overrideSortPreference = persistentListOf(),
             imported = false,
             pending = true,
         )
@@ -187,6 +196,8 @@ class SubscriptionRepositoryImpl(
                     source = source,
                     userAgent = trimmedUA,
                     ageSecretKey = trimmedAge,
+                    overrideIds = imported.overrideIds,
+                    overrideSortPreference = imported.overrideSortPreference,
                     interval = interval,
                     createdAt = imported.createdAt,
                 )
@@ -232,6 +243,8 @@ class SubscriptionRepositoryImpl(
             source = pending.source,
             userAgent = pending.userAgent,
             ageSecretKey = pending.ageSecretKey,
+            overrideIds = pending.overrideIds,
+            overrideSortPreference = pending.overrideSortPreference,
             interval = pending.interval,
             upload = upload,
             download = download,
@@ -306,6 +319,89 @@ class SubscriptionRepositoryImpl(
     }
 
     /**
+     * Service 冷启动时不能依赖 subscriptions StateFlow 已完成首轮收集；直接从 DB 读出
+     * 当前生效字段，保证开机自启也能带上脚本覆写。
+     */
+    suspend fun loadRuntimeSubscription(uuid: String): Subscription? = withProfileLock {
+        val imported = importedDao.queryByUUID(uuid) ?: return@withProfileLock null
+        Subscription(
+            id = uuid,
+            name = imported.name,
+            type = imported.type,
+            url = imported.source,
+            userAgent = imported.userAgent,
+            ageSecretKey = imported.ageSecretKey,
+            overrideIds = imported.overrideIds.decodeOverrideIds(),
+            overrideSortPreference = imported.overrideSortPreference.decodeOverrideIds(),
+            interval = imported.interval,
+            isActive = _activeUuid.value == uuid,
+            imported = true,
+        )
+    }
+
+    suspend fun loadActiveRuntimeSubscription(): Subscription? =
+        _activeUuid.value.takeIf { it.isNotEmpty() }?.let { loadRuntimeSubscription(it) }
+
+    /** 保存订阅的覆写选择；顺序字段与内容文件一起作为运行时快照。 */
+    override suspend fun setOverrideSelection(
+        subscriptionId: String,
+        overrideIds: List<String>,
+        sortPreference: List<String>,
+    ) = profileLock.withLock {
+        val encodedIds = overrideIds.encodeOverrideIds()
+        val encodedOrder = sortPreference.encodeOverrideIds()
+        database.withWriteTransaction {
+            val imported = importedDao.queryByUUID(subscriptionId)
+                ?: throw IllegalArgumentException("Profile $subscriptionId not found")
+            importedDao.update(
+                imported.copy(
+                    overrideIds = encodedIds,
+                    overrideSortPreference = encodedOrder,
+                ),
+            )
+            pendingDao.queryByUUID(subscriptionId)?.let { pending ->
+                pendingDao.update(
+                    pending.copy(
+                        overrideIds = encodedIds,
+                        overrideSortPreference = encodedOrder,
+                    ),
+                )
+            }
+            Unit
+        }
+    }
+
+    /** 删除覆写时同时清理 imported 与 pending，避免草稿取消后复活悬空引用。 */
+    suspend fun removeOverrideReferences(id: String) = profileLock.withLock {
+        database.withWriteTransaction {
+            importedDao.queryAll().forEach { profile ->
+                val ids = profile.overrideIds.decodeOverrideIds()
+                val order = profile.overrideSortPreference.decodeOverrideIds()
+                if (id in ids || id in order) {
+                    importedDao.update(
+                        profile.copy(
+                            overrideIds = ids.filterNot { it == id }.encodeOverrideIds(),
+                            overrideSortPreference = order.filterNot { it == id }.encodeOverrideIds(),
+                        ),
+                    )
+                }
+            }
+            pendingDao.queryAll().forEach { profile ->
+                val ids = profile.overrideIds.decodeOverrideIds()
+                val order = profile.overrideSortPreference.decodeOverrideIds()
+                if (id in ids || id in order) {
+                    pendingDao.update(
+                        profile.copy(
+                            overrideIds = ids.filterNot { it == id }.encodeOverrideIds(),
+                            overrideSortPreference = order.filterNot { it == id }.encodeOverrideIds(),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * 删除订阅（同时清除 Imported、Pending、Selection）。
      */
     override suspend fun delete(uuid: String) = profileLock.withLock {
@@ -339,6 +435,8 @@ class SubscriptionRepositoryImpl(
         if (activeId.isEmpty()) return null
         return _subscriptions.value.find { it.id == activeId }
     }
+
+    override fun getActiveId(): String? = _activeUuid.value.ifEmpty { null }
 
     /**
      * 当 uuid 是当前 active 时，同步 storage 中缓存的订阅名并触发通知刷新。
@@ -374,6 +472,8 @@ class SubscriptionRepositoryImpl(
             url = pending?.source ?: imported.source,
             userAgent = pending?.userAgent ?: imported.userAgent,
             ageSecretKey = pending?.ageSecretKey ?: imported.ageSecretKey,
+            overrideIds = (pending?.overrideIds ?: imported.overrideIds).decodeOverrideIds(),
+            overrideSortPreference = (pending?.overrideSortPreference ?: imported.overrideSortPreference).decodeOverrideIds(),
             interval = pending?.interval ?: imported.interval,
             upload = pending?.upload ?: liveInfo?.Upload ?: imported.upload,
             download = liveInfo?.Download ?: imported.download,

@@ -14,7 +14,7 @@ import androidx.sqlite.execSQL
  */
 @Database(
     entities = [ImportedEntity::class, PendingEntity::class, SelectionEntity::class],
-    version = 3,
+    version = 4,
 )
 @ColumnTypeConverters(ProfileTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
@@ -36,5 +36,15 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
     override suspend fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE imported ADD COLUMN ageSecretKey TEXT NOT NULL DEFAULT ''")
         connection.execSQL("ALTER TABLE pending ADD COLUMN ageSecretKey TEXT NOT NULL DEFAULT ''")
+    }
+}
+
+// v4: 为每个订阅保存脚本/YAML 覆写的选择顺序。
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override suspend fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE imported ADD COLUMN overrideIds TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("ALTER TABLE imported ADD COLUMN overrideSortPreference TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("ALTER TABLE pending ADD COLUMN overrideIds TEXT NOT NULL DEFAULT ''")
+        connection.execSQL("ALTER TABLE pending ADD COLUMN overrideSortPreference TEXT NOT NULL DEFAULT ''")
     }
 }

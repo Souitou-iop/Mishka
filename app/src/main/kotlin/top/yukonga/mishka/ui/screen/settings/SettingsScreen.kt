@@ -51,6 +51,7 @@ fun SettingsScreen(
     onNavigateWifiPolicy: () -> Unit = {},
     onNavigateThemeSettings: () -> Unit = {},
     onNavigateFileManager: () -> Unit = {},
+    onNavigateOverrides: () -> Unit = {},
     onNavigateBackup: () -> Unit = {},
     onNavigateAbout: () -> Unit = {},
     bootStartManager: BootStartManager? = null,
@@ -213,6 +214,13 @@ fun SettingsScreen(
                                 title = stringResource(R.string.settings_file_manager),
                                 summary = stringResource(R.string.settings_file_manager_summary),
                                 onClick = onNavigateFileManager,
+                            )
+                        })
+                        add(CardItem("overrides") {
+                            ArrowPreference(
+                                title = stringResource(R.string.settings_overrides),
+                                summary = stringResource(R.string.settings_overrides_summary),
+                                onClick = onNavigateOverrides,
                             )
                         })
                         add(CardItem("backup") {

@@ -575,4 +575,39 @@
     <string name="meta_age_copy_secret">复制私钥</string>
     <string name="meta_age_copy_public">复制公钥</string>
     <string name="meta_age_keygen_failed">生成密钥对失败</string>
+
+    <!-- Subscription overrides -->
+    <string name="settings_overrides">订阅覆写</string>
+    <string name="settings_overrides_summary">管理订阅使用的 YAML 与 JavaScript 覆写</string>
+    <string name="override_add">新增覆写</string>
+    <string name="override_edit">编辑覆写</string>
+    <string name="override_empty">暂无覆写，请新增本地或远程覆写。</string>
+    <string name="override_source_remote">远程</string>
+    <string name="override_source_local">本地</string>
+    <string name="override_add_method">新增方式</string>
+    <string name="override_method_remote">远程下载</string>
+    <string name="override_method_blank">新建空白</string>
+    <string name="override_method_local">导入文件</string>
+    <string name="override_name">覆写名称</string>
+    <string name="override_name_placeholder">输入覆写名称</string>
+    <string name="override_url">覆写地址</string>
+    <string name="override_url_placeholder">输入覆写地址</string>
+    <string name="override_local_file">本地文件</string>
+    <string name="override_format">文件格式</string>
+    <string name="override_move_up">上移</string>
+    <string name="override_move_down">下移</string>
+    <string name="override_format_yaml">YAML</string>
+    <string name="override_format_javascript">JavaScript</string>
+    <string name="override_delete_title">删除覆写</string>
+    <string name="override_delete_summary">确定删除“%1$s”吗？引用它的订阅也会移除。</string>
+    <string name="override_error_name_required">请输入覆写名称。</string>
+    <string name="override_error_invalid_url">覆写地址必须以 http:// 或 https:// 开头。</string>
+    <string name="override_error_file_required">请选择覆写文件。</string>
+    <string name="override_error_http_status">服务器返回 HTTP %1$d</string>
+    <string name="override_update_all_result">更新完成：成功 %1$d 个，失败 %2$d 个</string>
+    <string name="subscription_override_none">未选择覆写</string>
+    <plurals name="subscription_override_count">
+        <item quantity="other">已选择 %1$d 项覆写</item>
+    </plurals>
+    <string name="subscription_overrides">覆写</string>
 </resources>

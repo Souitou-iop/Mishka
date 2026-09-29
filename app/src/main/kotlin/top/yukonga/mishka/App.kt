@@ -31,6 +31,7 @@ import top.yukonga.mishka.viewmodel.MetaSettingsViewModel
 import top.yukonga.mishka.viewmodel.NetworkSettingsViewModel
 import top.yukonga.mishka.viewmodel.ProviderViewModel
 import top.yukonga.mishka.viewmodel.ProxyViewModel
+import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.LocalContentColor
@@ -45,6 +46,7 @@ fun App(
     onThemeConfigChange: (ThemeConfig) -> Unit = {},
     homeViewModel: HomeViewModel? = null,
     subscriptionViewModel: SubscriptionViewModel? = null,
+    overrideProfileViewModel: OverrideProfileViewModel? = null,
     proxyViewModel: ProxyViewModel? = null,
     logViewModel: LogViewModel? = null,
     providerViewModel: ProviderViewModel? = null,
@@ -130,6 +132,7 @@ fun App(
                 onThemeConfigChange = onThemeConfigChange,
                 homeViewModel = homeViewModel,
                 subscriptionViewModel = subscriptionViewModel,
+                overrideProfileViewModel = overrideProfileViewModel,
                 proxyViewModel = proxyViewModel,
                 logViewModel = logViewModel,
                 providerViewModel = providerViewModel,

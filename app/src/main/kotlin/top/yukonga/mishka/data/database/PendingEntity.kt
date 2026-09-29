@@ -12,6 +12,9 @@ data class PendingEntity(
     val source: String,
     val userAgent: String = "",
     val ageSecretKey: String = "",
+    // JSON 数组，避免为每个覆写选择单独建表；空串兼容旧数据库。
+    val overrideIds: String = "",
+    val overrideSortPreference: String = "",
     val interval: Long = 0,
     val upload: Long = 0,
     val download: Long = 0,

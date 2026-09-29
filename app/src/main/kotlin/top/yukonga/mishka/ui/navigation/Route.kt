@@ -74,5 +74,17 @@ sealed interface Route : NavKey {
     data class SubscriptionEdit(val uuid: String) : Route
 
     @Serializable
+    data class SubscriptionOverrides(val uuid: String) : Route
+
+    @Serializable
+    data object OverrideList : Route
+
+    @Serializable
+    data class OverrideEdit(val id: String? = null) : Route
+
+    @Serializable
+    data class OverrideFileEditor(val id: String) : Route
+
+    @Serializable
     data object About : Route
 }

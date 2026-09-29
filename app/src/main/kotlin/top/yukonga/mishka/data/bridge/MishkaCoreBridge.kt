@@ -34,6 +34,10 @@ data class CoreFetchResult(
     val fileName: String = "",
 )
 
+@Serializable
+private data class TransformCheck(val valid: Boolean = false)
+
+
 class MishkaCoreError(message: String) : RuntimeException(message)
 
 object MishkaCoreBridge {
@@ -117,6 +121,27 @@ object MishkaCoreBridge {
         return runCatching { json.decodeFromString(CoreFetchResult.serializer(), raw) }
             .getOrElse { throw MishkaCoreError("invalid native payload: $raw") }
     }
+
+    /** 按运行时同一条解密、脚本、Parse 链路校验变换，保存失败时不污染覆写文件。 */
+    fun validateTransform(workDir: java.io.File, transform: java.io.File, ageSecretKey: String) {
+        val raw = nativeValidateTransform(workDir.path, transform.path, ageSecretKey)
+        val result = interpretTransformResult(raw)
+        check(result.valid) { "native transform validation returned invalid result" }
+    }
+
+    private fun interpretTransformResult(raw: String?): TransformCheck {
+        if (raw.isNullOrEmpty()) throw MishkaCoreError("native returned empty result")
+        if (raw.startsWith("error:")) throw MishkaCoreError(raw.removePrefix("error:").trim())
+        return runCatching { json.decodeFromString(TransformCheck.serializer(), raw) }
+            .getOrElse { throw MishkaCoreError("invalid native payload: $raw") }
+    }
+
+    @JvmStatic
+    private external fun nativeValidateTransform(
+        workDir: String,
+        transform: String,
+        secretKey: String,
+    ): String?
 
     @JvmStatic
     private external fun nativeCoreInit(homeDir: String, userAgent: String)

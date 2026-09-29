@@ -28,6 +28,12 @@ interface SubscriptionRepository {
 
     fun getActive(): Subscription?
 
+    /** 立即返回已选订阅 ID，不等待订阅列表 Flow 回填。 */
+    fun getActiveId(): String?
+
+    /** 保存订阅选择的覆写 ID 与执行顺序。 */
+    suspend fun setOverrideSelection(subscriptionId: String, overrideIds: List<String>, sortPreference: List<String>)
+
     suspend fun create(
         type: ProfileType,
         name: String,
