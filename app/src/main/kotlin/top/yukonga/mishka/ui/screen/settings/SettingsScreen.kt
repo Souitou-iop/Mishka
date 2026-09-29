@@ -43,6 +43,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     bottomPadding: Dp = 0.dp,
     onNavigateVpnSettings: () -> Unit = {},
+    onNavigateTailscaleSettings: () -> Unit = {},
     onNavigateRootSettings: () -> Unit = {},
     onNavigateNetworkSettings: () -> Unit = {},
     onNavigateMetaSettings: () -> Unit = {},
@@ -165,6 +166,13 @@ fun SettingsScreen(
                                 )
                             })
                         }
+                        add(CardItem("tailscaleSettings") {
+                            ArrowPreference(
+                                title = stringResource(R.string.settings_tailscale),
+                                summary = stringResource(R.string.settings_tailscale_summary),
+                                onClick = onNavigateTailscaleSettings,
+                            )
+                        })
                         if (tunModeIndex == 1 || tunModeIndex == 2) {
                             add(CardItem("rootSettings") {
                                 ArrowPreference(

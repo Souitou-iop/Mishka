@@ -88,6 +88,17 @@ object StorageKeys {
     // 非全局模式下 GLOBAL 组是否留在列表里；全局模式无视此开关强制显示
     const val PROXY_SHOW_GLOBAL_GROUP = "proxy_show_global_group"
 
+    // Tailscale 出站
+    const val TAILSCALE_ENABLED = "tailscale_enabled"
+    const val TAILSCALE_AUTH_KEY = "tailscale_auth_key"
+    const val TAILSCALE_CONTROL_URL = "tailscale_control_url"
+    const val TAILSCALE_HOSTNAME = "tailscale_hostname"
+    const val TAILSCALE_EXIT_NODE = "tailscale_exit_node"
+    const val TAILSCALE_ACCEPT_ROUTES = "tailscale_accept_routes"
+    const val TAILSCALE_UDP = "tailscale_udp"
+    const val TAILSCALE_EPHEMERAL = "tailscale_ephemeral"
+    const val TAILSCALE_EXIT_NODE_ALLOW_LAN = "tailscale_exit_node_allow_lan"
+
     // 通用设置
     const val DARK_MODE = "dark_mode"
     const val THEME_PURE_BLACK = "theme_pure_black"

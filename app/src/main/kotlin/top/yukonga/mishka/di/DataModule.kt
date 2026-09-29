@@ -42,7 +42,7 @@ val dataModule = module {
 
     single { OverrideJsonStore(get(), get()) }
     single { OverrideProfileStore(get()) }
-    single { ProfileTransformWriter(get(), get()) }
+    single { ProfileTransformWriter(get(), get(), get()) }
     single { SubscriptionProxyResolver(get(), get()) }
     single<OverrideProfileRepository> {
         OverrideProfileRepositoryImpl(get(), get(), get(), get(), get(), get())

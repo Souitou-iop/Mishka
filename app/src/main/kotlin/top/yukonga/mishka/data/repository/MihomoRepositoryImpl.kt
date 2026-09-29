@@ -17,6 +17,7 @@ import top.yukonga.mishka.domain.model.ProxiesResponse
 import top.yukonga.mishka.domain.model.RuleProvidersResponse
 import top.yukonga.mishka.domain.model.RulesResponse
 import top.yukonga.mishka.domain.model.TrafficData
+import top.yukonga.mishka.domain.model.TailscaleStatus
 import top.yukonga.mishka.domain.repository.MihomoRepository
 
 class MihomoRepositoryImpl(
@@ -36,6 +37,7 @@ class MihomoRepositoryImpl(
     // === REST API ===
 
     override suspend fun getVersion(): Result<MihomoVersion> = runCatching { apiClient.getVersion() }
+    override suspend fun getTailscaleStatus(): Result<TailscaleStatus> = runCatching { apiClient.getTailscaleStatus() }
     override suspend fun getConfig(): Result<MihomoConfig> = runCatching { apiClient.getConfig() }
     override suspend fun getProxies(): Result<ProxiesResponse> = runCatching { apiClient.getProxies() }
     override suspend fun getGroups(): Result<GroupsResponse> = runCatching { apiClient.getGroups() }

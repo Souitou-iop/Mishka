@@ -1,5 +1,7 @@
 package top.yukonga.mishka.ui.navigation
 
+import kotlinx.coroutines.flow.StateFlow
+
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.gestures.Orientation
@@ -66,6 +68,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import top.yukonga.mishka.DeepLinkImportRequest
 import top.yukonga.mishka.R
+import top.yukonga.mishka.domain.repository.MihomoRepository
 import top.yukonga.mishka.platform.BootStartManager
 import top.yukonga.mishka.platform.FilePicker
 import top.yukonga.mishka.platform.PlatformStorage
@@ -91,6 +94,7 @@ import top.yukonga.mishka.ui.screen.settings.NetworkSettingsScreen
 import top.yukonga.mishka.ui.screen.settings.RootSettingsScreen
 import top.yukonga.mishka.ui.screen.settings.SettingsScreen
 import top.yukonga.mishka.ui.screen.settings.ThemeSettingsScreen
+import top.yukonga.mishka.ui.screen.settings.TailscaleSettingsScreen
 import top.yukonga.mishka.ui.screen.settings.VpnSettingsScreen
 import top.yukonga.mishka.ui.screen.settings.WifiPolicyScreen
 import top.yukonga.mishka.ui.screen.overrides.OverrideEditScreen
@@ -201,6 +205,7 @@ fun AppNavigation(
     appProxyViewModel: AppProxyViewModel? = null,
     filePicker: FilePicker? = null,
     storage: PlatformStorage? = null,
+    mihomoRepository: StateFlow<MihomoRepository?>? = null,
     bootStartManager: BootStartManager? = null,
     mihomoVersion: String = "",
     onScanQR: ((callback: (String?) -> Unit) -> Unit)? = null,
@@ -416,6 +421,15 @@ fun AppNavigation(
                     )
                 }
             }
+            entry<Route.TailscaleSettings>(swipeDismiss = swipeDismiss) {
+                storage?.let {
+                    TailscaleSettingsScreen(
+                        storage = it,
+                        mihomoRepository = mihomoRepository,
+                        onBack = { navigator.pop() },
+                    )
+                }
+            }
             entry<Route.RootSettings>(swipeDismiss = swipeDismiss) {
                 storage?.let {
                     val homeState = homeViewModel?.uiState?.collectAsStateWithLifecycle()?.value
@@ -601,6 +615,7 @@ private fun MainPage(
                 3 -> SettingsScreen(
                     bottomPadding = bottomPadding,
                     onNavigateVpnSettings = { navigator.push(Route.VpnSettings) },
+                    onNavigateTailscaleSettings = { navigator.push(Route.TailscaleSettings) },
                     onNavigateRootSettings = { navigator.push(Route.RootSettings) },
                     onNavigateNetworkSettings = { navigator.push(Route.NetworkSettings) },
                     onNavigateMetaSettings = { navigator.push(Route.MetaSettings) },

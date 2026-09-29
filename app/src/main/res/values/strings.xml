@@ -613,4 +613,41 @@
         <item quantity="other">%1$d overrides selected</item>
     </plurals>
     <string name="subscription_overrides">Overrides</string>
+
+    <!-- Tailscale -->
+    <string name="settings_tailscale">Tailscale</string>
+    <string name="settings_tailscale_summary">Route Tailnet traffic through mihomo</string>
+    <string name="tailscale_group">Tailscale</string>
+    <string name="tailscale_enabled">Enable</string>
+    <string name="tailscale_enabled_summary">Use Tailscale as a mihomo outbound for Tailnet traffic</string>
+    <string name="tailscale_auth_key">Auth key</string>
+    <string name="tailscale_auth_key_empty">Not set</string>
+    <string name="tailscale_control_url">Control server URL</string>
+    <string name="tailscale_control_url_default">Default Tailscale control server</string>
+    <string name="tailscale_hostname">Device name</string>
+    <string name="tailscale_hostname_default">Use the Android device name</string>
+    <string name="tailscale_exit_node">Exit node</string>
+    <string name="tailscale_exit_node_none">None</string>
+    <string name="tailscale_accept_routes">Use subnet routes</string>
+    <string name="tailscale_accept_routes_summary">Accept routes advertised by Tailnet nodes</string>
+    <string name="tailscale_udp">Enable UDP</string>
+    <string name="tailscale_udp_summary">Allow UDP connections through the Tailscale outbound</string>
+    <string name="tailscale_ephemeral">Ephemeral device</string>
+    <string name="tailscale_ephemeral_summary">Remove this device from the tailnet when it disconnects</string>
+    <string name="tailscale_exit_node_allow_lan">Allow local LAN with exit node</string>
+    <string name="tailscale_exit_node_allow_lan_summary">Keep local network access while using an exit node</string>
+    <string name="tailscale_notice">Tailscale is embedded as a mihomo outbound. Changes take effect after the proxy restarts. Do not add 100.64.0.0/10 to TUN excluded routes.</string>
+
+    <string name="tailscale_devices_group">Devices</string>
+    <string name="tailscale_status">Status</string>
+    <string name="tailscale_vpn_connected">VPN connected</string>
+    <string name="tailscale_vpn_disconnected">VPN not connected</string>
+    <string name="tailscale_vpn_connecting">Connecting</string>
+    <string name="tailscale_device_none">No devices</string>
+    <string name="tailscale_current_device">This device</string>
+    <string name="tailscale_device_online">Connected</string>
+    <string name="tailscale_device_offline">Not connected</string>
+    <string name="tailscale_refresh_devices">Refresh devices</string>
+    <string name="tailscale_last_seen">Last seen %s</string>
+    <string name="tailscale_rtt_unavailable">RTT unavailable</string>
 </resources>

@@ -29,6 +29,7 @@ import top.yukonga.mishka.domain.model.ProvidersResponse
 import top.yukonga.mishka.domain.model.ProxiesResponse
 import top.yukonga.mishka.domain.model.RuleProvidersResponse
 import top.yukonga.mishka.domain.model.RulesResponse
+import top.yukonga.mishka.domain.model.TailscaleStatus
 
 class MihomoApiClient(
     private val baseUrl: String = "http://127.0.0.1:9090",
@@ -61,6 +62,9 @@ class MihomoApiClient(
 
     suspend fun getVersion(): MihomoVersion =
         client.get("$baseUrl/version").body()
+
+    suspend fun getTailscaleStatus(): TailscaleStatus =
+        client.get("$baseUrl/tailscale/status").body()
 
     suspend fun getConfig(): MihomoConfig =
         client.get("$baseUrl/configs").body()

@@ -15,6 +15,7 @@ import top.yukonga.mishka.domain.model.ProxiesResponse
 import top.yukonga.mishka.domain.model.RuleProvidersResponse
 import top.yukonga.mishka.domain.model.RulesResponse
 import top.yukonga.mishka.domain.model.TrafficData
+import top.yukonga.mishka.domain.model.TailscaleStatus
 
 /**
  * mihomo runtime 客户端门面：REST + WebSocket 流。实现见 data 层 `MihomoRepositoryImpl`。
@@ -29,6 +30,7 @@ interface MihomoRepository {
     fun connectionsFlow(): Flow<ConnectionsResponse>
 
     suspend fun getVersion(): Result<MihomoVersion>
+    suspend fun getTailscaleStatus(): Result<TailscaleStatus>
     suspend fun getConfig(): Result<MihomoConfig>
     suspend fun getProxies(): Result<ProxiesResponse>
     suspend fun getGroups(): Result<GroupsResponse>

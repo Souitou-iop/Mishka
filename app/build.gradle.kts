@@ -70,6 +70,14 @@ android {
         debug {
             if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
         }
+        // 独立安装包：不覆盖正式 Mishka，使用独立包名与 debug 签名。
+        create("tailscale") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".tailscale"
+            versionNameSuffix = "-tailscale"
+            manifestPlaceholders["appLabel"] = "Mishka Tailscale"
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
     buildFeatures {
         buildConfig = true
@@ -89,6 +97,7 @@ android {
         targetSdk = ProjectConfig.Android.TARGET_SDK
         versionName = ProjectConfig.VERSION_NAME
         versionCode = gitVersionCode
+        manifestPlaceholders["appLabel"] = "Mishka"
     }
     dependenciesInfo {
         includeInApk = false

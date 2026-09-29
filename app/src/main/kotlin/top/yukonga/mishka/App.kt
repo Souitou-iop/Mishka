@@ -1,5 +1,7 @@
 package top.yukonga.mishka
 
+import kotlinx.coroutines.flow.StateFlow
+
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -7,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import top.yukonga.mishka.domain.repository.MihomoRepository
 import top.yukonga.mishka.platform.BootStartManager
 import top.yukonga.mishka.platform.FilePicker
 import top.yukonga.mishka.platform.PlatformStorage
@@ -58,6 +61,7 @@ fun App(
     appProxyViewModel: AppProxyViewModel? = null,
     filePicker: FilePicker? = null,
     storage: PlatformStorage? = null,
+    mihomoRepository: StateFlow<MihomoRepository?>? = null,
     bootStartManager: BootStartManager? = null,
     mihomoVersion: String = "",
     onScanQR: ((callback: (String?) -> Unit) -> Unit)? = null,
@@ -144,6 +148,7 @@ fun App(
                 appProxyViewModel = appProxyViewModel,
                 filePicker = filePicker,
                 storage = storage,
+                mihomoRepository = mihomoRepository,
                 bootStartManager = bootStartManager,
                 mihomoVersion = mihomoVersion,
                 onScanQR = onScanQR,

@@ -1,6 +1,6 @@
 [submodule "mihomo"]
 	path = mihomo
-	url = https://github.com/YuKongA/mihomo.git
+	url = https://github.com/Souitou-iop/mihomo.git
 	branch = Mishka
 [submodule "scripta"]
 	path = scripta

@@ -610,4 +610,41 @@
         <item quantity="other">已選擇 %1$d 項覆寫</item>
     </plurals>
     <string name="subscription_overrides">覆寫</string>
+
+    <!-- Tailscale -->
+    <string name="settings_tailscale">Tailscale</string>
+    <string name="settings_tailscale_summary">通过 mihomo 处理 Tailnet 流量</string>
+    <string name="tailscale_group">Tailscale</string>
+    <string name="tailscale_enabled">启用</string>
+    <string name="tailscale_enabled_summary">使用 Tailscale 作为 mihomo 的 Tailnet 出站</string>
+    <string name="tailscale_auth_key">认证密钥</string>
+    <string name="tailscale_auth_key_empty">未设置</string>
+    <string name="tailscale_control_url">控制服务器 URL</string>
+    <string name="tailscale_control_url_default">默认 Tailscale 控制服务器</string>
+    <string name="tailscale_hostname">设备名称</string>
+    <string name="tailscale_hostname_default">使用 Android 设备名称</string>
+    <string name="tailscale_exit_node">出口节点</string>
+    <string name="tailscale_exit_node_none">不使用</string>
+    <string name="tailscale_accept_routes">使用 Tailscale 子网</string>
+    <string name="tailscale_accept_routes_summary">接受 Tailnet 节点发布的子网路由</string>
+    <string name="tailscale_udp">启用 UDP</string>
+    <string name="tailscale_udp_summary">允许通过 Tailscale 出站建立 UDP 连接</string>
+    <string name="tailscale_ephemeral">临时设备</string>
+    <string name="tailscale_ephemeral_summary">断开后从 Tailnet 中移除该设备</string>
+    <string name="tailscale_exit_node_allow_lan">出口节点允许访问本地网络</string>
+    <string name="tailscale_exit_node_allow_lan_summary">使用出口节点时保留本地网络访问</string>
+    <string name="tailscale_notice">Tailscale 作为 mihomo 出站内嵌运行。配置将在代理重启后生效。不要将 100.64.0.0/10 加入 TUN 旁路路由。</string>
+
+    <string name="tailscale_devices_group">裝置</string>
+    <string name="tailscale_vpn_connected">VPN 已連接</string>
+    <string name="tailscale_status">狀態</string>
+    <string name="tailscale_vpn_disconnected">VPN 未連接</string>
+    <string name="tailscale_vpn_connecting">正在連接</string>
+    <string name="tailscale_device_none">無裝置</string>
+    <string name="tailscale_current_device">此裝置</string>
+    <string name="tailscale_device_online">已連接</string>
+    <string name="tailscale_device_offline">未連接</string>
+    <string name="tailscale_refresh_devices">重新整理裝置</string>
+    <string name="tailscale_last_seen">最近上線 %s</string>
+    <string name="tailscale_rtt_unavailable">無法取得 RTT</string>
 </resources>

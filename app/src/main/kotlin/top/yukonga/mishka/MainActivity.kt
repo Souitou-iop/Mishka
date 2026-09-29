@@ -257,6 +257,7 @@ class MainActivity : ComponentActivity() {
                 appProxyViewModel = appProxyViewModel,
                 filePicker = filePicker,
                 storage = storage,
+                mihomoRepository = connectionManager.repository,
                 bootStartManager = get<BootStartManager>(),
                 onScanQR = { callback ->
                     qrResultCallback = callback
