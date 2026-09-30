@@ -6,6 +6,7 @@ import top.yukonga.mishka.domain.repository.SubscriptionRepository
 import top.yukonga.mishka.viewmodel.AppProxyViewModel
 import top.yukonga.mishka.viewmodel.BackupViewModel
 import top.yukonga.mishka.viewmodel.ConnectionViewModel
+import top.yukonga.mishka.viewmodel.DiagnosticsViewModel
 import top.yukonga.mishka.viewmodel.DnsQueryViewModel
 import top.yukonga.mishka.viewmodel.ExternalControlViewModel
 import top.yukonga.mishka.viewmodel.HomeViewModel
@@ -50,5 +51,6 @@ val viewModelModule = module {
     single { ProviderViewModel() }
     single { ConnectionViewModel() }
     single { DnsQueryViewModel() }
+    single { DiagnosticsViewModel(get()) }
     single { BackupViewModel(get(), get(), androidContext()) }
 }

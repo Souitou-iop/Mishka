@@ -35,6 +35,7 @@ class MishkaApplication : Application() {
 
     // 自动更新闹钟随 imported 表对账，进程一起就接上（后台服务拉起的进程同样需要）
     private val updateScheduler: ProfileUpdateScheduler by inject()
+    private val platformStorage: PlatformStorage by inject()
 
     override fun onCreate() {
         super.onCreate()
@@ -45,6 +46,8 @@ class MishkaApplication : Application() {
         }
         initToastPlatform(this)
         NotificationHelper.createChannels(this)
+        // 越早越好：任何读取 Tailscale auth key 的路径（启动代理/生成 transform）都必须在迁移之后
+        platformStorage.migratePlaintextSecret(StorageKeys.TAILSCALE_AUTH_KEY)
         extractGeoFiles()
         // 必须在 extractGeoFiles 之后；UA 用订阅服务白名单接受的字符串
         MishkaCoreBridge.init(

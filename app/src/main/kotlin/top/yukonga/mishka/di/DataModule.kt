@@ -9,8 +9,10 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 import top.yukonga.mishka.R
 import top.yukonga.mishka.data.api.MihomoConnectionManager
+import top.yukonga.mishka.cli.MishkaCliCommandHandler
 import top.yukonga.mishka.data.api.RuleLatencyTester
 import top.yukonga.mishka.data.database.AppDatabase
+import top.yukonga.mishka.data.diagnostics.ConfigDiagnosticsBuilder
 import top.yukonga.mishka.data.repository.OverrideJsonStore
 import top.yukonga.mishka.data.repository.OverrideProfileRepositoryImpl
 import top.yukonga.mishka.data.store.OverrideProfileStore
@@ -43,6 +45,16 @@ val dataModule = module {
     single { OverrideJsonStore(get(), get()) }
     single { OverrideProfileStore(get()) }
     single { ProfileTransformWriter(get(), get(), get()) }
+    single {
+        ConfigDiagnosticsBuilder(
+            fileManager = get(),
+            transformWriter = get(),
+            overrides = get(),
+            storage = get(),
+            subscriptions = get(),
+            userOverride = get(),
+        )
+    }
     single { SubscriptionProxyResolver(get(), get()) }
     single<OverrideProfileRepository> {
         OverrideProfileRepositoryImpl(get(), get(), get(), get(), get(), get())
@@ -59,6 +71,24 @@ val dataModule = module {
             fileManager = get(),
             defaultProfileName = androidContext().getString(R.string.subscription_default_name),
             proxyResolver = get(),
+        )
+    }
+    single {
+        MishkaCliCommandHandler(
+            context = androidContext(),
+            serviceController = get(),
+            subscriptions = get(),
+            processor = get(),
+            overrideStore = get(),
+            overrideProfiles = get(),
+            overrideProfileStore = get(),
+            storage = get(),
+            fileManager = get(),
+            connectionManager = get(),
+            diagnostics = get(),
+            backupManager = get(),
+            bootStartManager = get(),
+            wifiPolicyController = get(),
         )
     }
 }

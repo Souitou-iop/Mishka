@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -37,11 +38,16 @@ import top.yukonga.mishka.R
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.withTimeoutOrNull
+import top.yukonga.mishka.data.store.ProfileTransformWriter
 import top.yukonga.mishka.domain.model.TailscaleDevice
 import top.yukonga.mishka.domain.model.TailscaleStatus
 import top.yukonga.mishka.domain.repository.MihomoRepository
 import top.yukonga.mishka.platform.PlatformStorage
+import top.yukonga.mishka.platform.SecretStorageUnavailableException
+import top.yukonga.mishka.platform.ProxyServiceBridge
+import top.yukonga.mishka.platform.ProxyState
 import top.yukonga.mishka.platform.StorageKeys
+import top.yukonga.mishka.platform.showToast
 import top.yukonga.mishka.ui.component.AdaptiveTopAppBar
 import top.yukonga.mishka.ui.component.CardItem
 import top.yukonga.mishka.ui.component.blur.BlurredBar
@@ -82,33 +88,84 @@ fun TailscaleSettingsScreen(
     onBack: () -> Unit = {},
 ) {
     val scrollBehavior = MiuixScrollBehavior()
+    val context = LocalContext.current
     val currentRepository = mihomoRepository?.collectAsStateWithLifecycle()?.value
-    var enabled by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_ENABLED, "false") == "true") }
+    val serviceStatus by ProxyServiceBridge.state.collectAsStateWithLifecycle()
+    // 兼容旧版留下的「开关为 true、密钥为空」状态：UI 先按不可用态展示，并在进入页面时修正持久值。
+    val storedEnabled = remember { storage.getString(StorageKeys.TAILSCALE_ENABLED, "false") == "true" }
     var acceptRoutes by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_ACCEPT_ROUTES, "true") != "false") }
     var udp by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_UDP, "true") != "false") }
     var ephemeral by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_EPHEMERAL, "false") == "true") }
     var allowLan by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_EXIT_NODE_ALLOW_LAN, "false") == "true") }
+    // 敏感值经 Keystore 路径读取；control-url 仍是普通明文 prefs
+    var authKey by remember { mutableStateOf(storage.getSecret(StorageKeys.TAILSCALE_AUTH_KEY)) }
+    var enabled by remember { mutableStateOf(storedEnabled && authKey.isNotBlank()) }
+    var controlUrl by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_CONTROL_URL, "")) }
+    var hostname by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_HOSTNAME, "")) }
+    var exitNode by remember { mutableStateOf(storage.getString(StorageKeys.TAILSCALE_EXIT_NODE, "")) }
     var tailscaleStatus by remember { mutableStateOf<TailscaleStatus?>(null) }
     // 手动刷新走 conflated 信号而非用作 LaunchedEffect key：重启 effect 会先清空
     // tailscaleStatus 再等 fetch 返回，设备区卸载重挂，表现为点刷新时整页闪烁。
     val refreshSignal = remember { Channel<Unit>(Channel.CONFLATED) }
+    var tailscaleError by remember { mutableStateOf<String?>(null) }
+    var missingExitNode by remember { mutableStateOf<String?>(null) }
+    var proxyNameConflict by remember { mutableStateOf(false) }
+
+    val authKeyRequiredMessage = stringResource(R.string.tailscale_auth_key_required)
+    val secureStorageUnavailableMessage = stringResource(R.string.tailscale_secure_storage_unavailable)
+    val controlUrlInvalidMessage = stringResource(R.string.tailscale_control_url_invalid)
+    val hostnameRestartRequiredMessage = stringResource(R.string.tailscale_hostname_restart_required)
+    val proxyNameConflictMessage = stringResource(
+        R.string.tailscale_proxy_name_conflict,
+        ProfileTransformWriter.TAILSCALE_PROXY_NAME,
+    )
+    val exitNodeNotFoundMessage = { node: String -> context.getString(R.string.tailscale_exit_node_not_found, node) }
+
+    LaunchedEffect(storedEnabled, authKey) {
+        if (storedEnabled && authKey.isBlank()) {
+            storage.putString(StorageKeys.TAILSCALE_ENABLED, "false")
+        }
+    }
 
     LaunchedEffect(mihomoRepository, enabled) {
         if (!enabled || mihomoRepository == null) {
             tailscaleStatus = null
+            tailscaleError = null
+            missingExitNode = null
             return@LaunchedEffect
         }
         mihomoRepository.collectLatest { repository ->
             if (repository == null) {
                 tailscaleStatus = null
+                tailscaleError = null
+                missingExitNode = null
                 return@collectLatest
             }
             while (true) {
-                repository.getTailscaleStatus().onSuccess { tailscaleStatus = it }
+                repository.getTailscaleStatus()
+                    .onSuccess { status ->
+                        tailscaleStatus = status
+                        tailscaleError = null
+                        missingExitNode = exitNode
+                            .takeIf { it.isNotBlank() && !status.hasExitNode(it) }
+                    }
+                    .onFailure { error ->
+                        tailscaleError = error.message?.takeIf { it.isNotBlank() }
+                            ?: error::class.simpleName
+                        missingExitNode = null
+                    }
                 // 失败保留旧数据，周期轮询与手动刷新都不因瞬时失败清空页面
                 withTimeoutOrNull(5_000) { refreshSignal.receive() }
             }
         }
+    }
+
+    LaunchedEffect(currentRepository) {
+        proxyNameConflict = currentRepository?.getProxies()?.getOrNull()?.proxies
+            ?.values
+            ?.firstOrNull { it.name == ProfileTransformWriter.TAILSCALE_PROXY_NAME }
+            ?.let { !it.type.equals("tailscale", ignoreCase = true) }
+            ?: false
     }
 
     var editing by remember { mutableStateOf<Field?>(null) }
@@ -119,7 +176,8 @@ fun TailscaleSettingsScreen(
 
     fun open(field: Field) {
         editing = field
-        textState.edit { replace(0, length, storage.getString(field.key, "")) }
+        val current = if (field == Field.AuthKey) storage.getSecret(field.key) else storage.getString(field.key, "")
+        textState.edit { replace(0, length, current) }
     }
 
     Scaffold(
@@ -161,6 +219,9 @@ fun TailscaleSettingsScreen(
                 TailscaleDeviceStatusCard(
                     status = tailscaleStatus,
                     isRunning = currentRepository != null,
+                    errorMessage = serviceStatus.errorMessage.takeIf {
+                        enabled && serviceStatus.state == ProxyState.Error && it.isNotBlank()
+                    } ?: tailscaleError ?: missingExitNode?.let(exitNodeNotFoundMessage),
                     onRefresh = { refreshSignal.trySend(Unit) },
                 )
             }
@@ -203,16 +264,26 @@ fun TailscaleSettingsScreen(
                             title = stringResource(R.string.tailscale_enabled),
                             summary = stringResource(R.string.tailscale_enabled_summary),
                             checked = enabled,
-                            onCheckedChange = {
-                                enabled = it
-                                storage.putString(StorageKeys.TAILSCALE_ENABLED, it.toString())
+                            onCheckedChange = { checked ->
+                                when {
+                                    checked && authKey.isBlank() -> showToast(authKeyRequiredMessage, long = true)
+                                    checked && proxyNameConflict -> showToast(proxyNameConflictMessage, long = true)
+                                    checked && missingExitNode != null -> showToast(
+                                        exitNodeNotFoundMessage(missingExitNode.orEmpty()),
+                                        long = true,
+                                    )
+                                    else -> {
+                                        enabled = checked
+                                        storage.putString(StorageKeys.TAILSCALE_ENABLED, checked.toString())
+                                    }
+                                }
                             },
                         )
                     },
                     CardItem("authKey") {
                         ArrowPreference(
                             title = stringResource(R.string.tailscale_auth_key),
-                            summary = if (storage.getString(StorageKeys.TAILSCALE_AUTH_KEY, "").isBlank()) {
+                            summary = if (authKey.isBlank()) {
                                 stringResource(R.string.tailscale_auth_key_empty)
                             } else "••••••••",
                             onClick = { open(Field.AuthKey) },
@@ -221,7 +292,7 @@ fun TailscaleSettingsScreen(
                     CardItem("controlUrl") {
                         ArrowPreference(
                             title = stringResource(R.string.tailscale_control_url),
-                            summary = storage.getString(StorageKeys.TAILSCALE_CONTROL_URL, "").ifBlank {
+                            summary = controlUrl.ifBlank {
                                 stringResource(R.string.tailscale_control_url_default)
                             },
                             onClick = { open(Field.ControlUrl) },
@@ -230,7 +301,7 @@ fun TailscaleSettingsScreen(
                     CardItem("hostname") {
                         ArrowPreference(
                             title = stringResource(R.string.tailscale_hostname),
-                            summary = storage.getString(StorageKeys.TAILSCALE_HOSTNAME, "").ifBlank {
+                            summary = hostname.ifBlank {
                                 stringResource(R.string.tailscale_hostname_default)
                             },
                             onClick = { open(Field.Hostname) },
@@ -239,7 +310,7 @@ fun TailscaleSettingsScreen(
                     CardItem("exitNode") {
                         ArrowPreference(
                             title = stringResource(R.string.tailscale_exit_node),
-                            summary = storage.getString(StorageKeys.TAILSCALE_EXIT_NODE, "").ifBlank {
+                            summary = exitNode.ifBlank {
                                 stringResource(R.string.tailscale_exit_node_none)
                             },
                             onClick = { open(Field.ExitNode) },
@@ -332,8 +403,56 @@ fun TailscaleSettingsScreen(
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.textButtonColorsPrimary(),
                 onClick = {
-                    editing?.let { storage.putString(it.key, textState.text.toString().trim()) }
-                    editing = null
+                    var close = true
+                    editing?.let { field ->
+                        val value = textState.text.toString().trim()
+                        when (field) {
+                            Field.AuthKey -> {
+                                try {
+                                    storage.putSecret(field.key, value)
+                                    authKey = storage.getSecret(field.key)
+                                    // 清空密钥时不能维持已启用，否则又回到「显示已开、实际不生效」
+                                    if (authKey.isBlank() && enabled) {
+                                        enabled = false
+                                        storage.putString(StorageKeys.TAILSCALE_ENABLED, "false")
+                                    }
+                                } catch (_: SecretStorageUnavailableException) {
+                                    showToast(secureStorageUnavailableMessage, long = true)
+                                    close = false
+                                }
+                            }
+                            Field.ControlUrl -> {
+                                if (!ProfileTransformWriter.validateControlUrl(value)) {
+                                    showToast(controlUrlInvalidMessage, long = true)
+                                    close = false
+                                } else {
+                                    storage.putString(field.key, value)
+                                    controlUrl = value
+                                }
+                            }
+                            Field.Hostname -> {
+                                val changed = value != hostname
+                                storage.putString(field.key, value)
+                                hostname = value
+                                if (changed && enabled && serviceStatus.state == ProxyState.Running) {
+                                    showToast(hostnameRestartRequiredMessage, long = true)
+                                }
+                            }
+                            Field.ExitNode -> {
+                                if (value.isNotBlank() && tailscaleStatus != null && !tailscaleStatus!!.hasExitNode(value)) {
+                                    showToast(exitNodeNotFoundMessage(value), long = true)
+                                    close = false
+                                } else {
+                                    storage.putString(field.key, value)
+                                    exitNode = value
+                                    missingExitNode = value.takeIf {
+                                        it.isNotBlank() && tailscaleStatus?.hasExitNode(it) == false
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (close) editing = null
                 },
             )
         }
@@ -345,6 +464,7 @@ fun TailscaleSettingsScreen(
 private fun TailscaleDeviceStatusCard(
     status: TailscaleStatus?,
     isRunning: Boolean,
+    errorMessage: String?,
     onRefresh: () -> Unit,
 ) {
     Card(
@@ -366,11 +486,13 @@ private fun TailscaleDeviceStatusCard(
                 )
                 Text(
                     text = when {
+                        !errorMessage.isNullOrBlank() -> stringResource(R.string.tailscale_error, errorMessage)
                         !isRunning -> stringResource(R.string.tailscale_vpn_disconnected)
                         status == null -> stringResource(R.string.tailscale_vpn_connecting)
                         else -> stringResource(R.string.tailscale_vpn_connected)
                     },
                     color = when {
+                        !errorMessage.isNullOrBlank() -> StatusColors.danger
                         !isRunning -> MiuixTheme.colorScheme.onSurfaceVariantSummary
                         status == null -> StatusColors.warning
                         else -> StatusColors.healthy
@@ -454,6 +576,20 @@ private fun formatLastSeen(iso: String): String = runCatching {
     DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
         .format(OffsetDateTime.parse(iso).atZoneSameInstant(ZoneId.systemDefault()))
 }.getOrDefault(iso)
+
+private fun TailscaleStatus.hasExitNode(raw: String): Boolean {
+    val target = normalizeExitNode(raw)
+    if (target.startsWith("auto:")) return true
+    return buildList {
+        self?.let(::add)
+        addAll(devices)
+    }.any { device ->
+        listOf(device.name, device.dnsName, device.hostname, *device.ips.toTypedArray())
+            .any { normalizeExitNode(it) == target }
+    }
+}
+
+private fun normalizeExitNode(value: String): String = value.trim().trimEnd('.').lowercase()
 
 private enum class Field(val key: String, val titleRes: Int) {
     AuthKey(StorageKeys.TAILSCALE_AUTH_KEY, R.string.tailscale_auth_key),

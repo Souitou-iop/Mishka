@@ -21,6 +21,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import top.yukonga.mishka.data.database.ImportedDao
 import top.yukonga.mishka.data.database.ImportedEntity
 import top.yukonga.mishka.data.database.AppDatabase
@@ -108,10 +109,11 @@ class SubscriptionRepositoryImpl(
     }
 
     private suspend fun collectProfiles() {
-        combine(importedDao.getAllFlow(), _activeUuid, _liveProvider) { entities, activeId, live ->
-            // pending 一次取回建表：逐条 queryByUUID 会让任意 imported 写入 / active 切换 /
-            // live 推送都放大成 N 次查询
-            val pendingMap = pendingDao.queryAll().associateBy { it.uuid }
+        combine(importedDao.getAllFlow(), pendingDao.getAllFlow(), _activeUuid, _liveProvider) {
+                entities, pendingEntities, activeId, live ->
+            // pending 也必须进入触发流；仅在 imported 变化时重算会让已导入订阅的
+            // 编辑草稿直到下次 imported 写入才反映到订阅列表，CLI 与 UI 都会读到旧快照。
+            val pendingMap = pendingEntities.associateBy { it.uuid }
             entities.map { resolveProfile(it, pendingMap[it.uuid], activeId, live) }
                 .toPersistentList()
             // 目录 mtime 是阻塞 stat，appScope 跑在 Default
@@ -437,6 +439,16 @@ class SubscriptionRepositoryImpl(
     }
 
     override fun getActiveId(): String? = _activeUuid.value.ifEmpty { null }
+
+    override suspend fun refresh() = withContext(Dispatchers.IO) {
+        val imported = importedDao.queryAll()
+        val pendingMap = pendingDao.queryAll().associateBy { it.uuid }
+        val activeId = _activeUuid.value
+        val live = _liveProvider.value
+        _subscriptions.value = imported
+            .map { resolveProfile(it, pendingMap[it.uuid], activeId, live) }
+            .toPersistentList()
+    }
 
     /**
      * 当 uuid 是当前 active 时，同步 storage 中缓存的订阅名并触发通知刷新。

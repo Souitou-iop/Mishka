@@ -304,8 +304,7 @@
     <string name="settings_wifi_policy">Автопереключение Wi-Fi</string>
     <string name="settings_wifi_policy_summary">Остановка службы или режим DIRECT в выбранных сетях Wi-Fi</string>
     <string name="settings_dynamic_notification">Динамическое уведомление</string>
-    <string name="settings_dynamic_notification_summary">Отображать текущую скорость и трафик в шторке</string>
-    <string name="settings_dynamic_notification_summary_root_unsupported">Только в режиме VPN</string>
+    <string name="settings_dynamic_notification_summary">Показывать скорость и трафик в реальном времени в уведомлениях для режимов VPN и ROOT</string>
     <string name="settings_subscription_via_proxy">Обновлять через прокси</string>
     <string name="settings_subscription_via_proxy_summary">Использовать прокси при обновлении подписок</string>
     <string name="settings_restart_after_update">Перезапуск после обновления</string>
@@ -333,7 +332,7 @@
     <string name="settings_theme_blur_style_gaussian_summary">Равномерное матовое размытие по всей верхней панели</string>
     <string name="settings_theme_blur_style_progressive_summary">Градиентное размытие с усилением к верхнему краю</string>
     <string name="settings_theme_density_scale">Масштаб интерфейса</string>
-    <string name="settings_theme_density_scale_summary">Настройка общего масштаба отображения (80% – 110%)</string>
+    <string name="settings_theme_density_scale_summary" formatted="false">Настройка общего масштаба отображения (80% – 110%)</string>
     <string name="settings_theme_floating_bottom_bar">Плавающая нижняя панель</string>
     <string name="settings_theme_floating_bottom_bar_summary">Использовать парящую нижнюю панель на смартфонах</string>
     <string name="settings_theme_floating_bottom_bar_style">Стиль плавающей нижней панели</string>
@@ -525,13 +524,18 @@
     <string name="settings_backup">Резервное копирование</string>
     <string name="settings_backup_summary">Резервное копирование и восстановление локально или через WebDAV</string>
     <string name="backup_title">Резервное копирование</string>
-    <string name="backup_hint">Создание единого архива с подписками, переопределениями и настройками на сервере WebDAV. Восстановление перезапишет локальные данные.</string>
+    <string name="backup_hint">Резервное копирование подписок, переопределений и настроек в версионные снимки WebDAV. Восстановление перезаписывает локальные данные; фиксированная копия оригинала автоматически не изменяется.</string>
     <string name="backup_server_url">URL сервера</string>
     <string name="backup_username">Имя пользователя</string>
     <string name="backup_password">Пароль</string>
     <string name="backup_test_connection">Проверить соединение</string>
     <string name="backup_now">Создать копию в WebDAV</string>
     <string name="backup_restore_now">Восстановить из WebDAV</string>
+    <string name="backup_remote_newer">На сервере есть более новый снимок. Сначала восстановите его, затем создавайте резервную копию.</string>
+    <string name="backup_export_legacy_done">Совместимая копия экспортирована</string>
+    <string name="backup_export_legacy_confirm_summary">Будет заменён файл Mishka/mishka-backup.zip, который использует оригинальное приложение. История новых снимков сохранится. Продолжить?</string>
+    <string name="backup_export_legacy_confirm_title">Экспорт совместимой копии для оригинала</string>
+    <string name="backup_export_legacy">Экспорт для оригинального Mishka</string>
     <string name="backup_missing_credentials">Необходимо указать URL сервера, имя пользователя и пароль</string>
     <string name="backup_connection_ok">Соединение успешно установлено</string>
     <string name="backup_done">Резервное копирование завершено</string>
@@ -615,4 +619,49 @@
         <item quantity="other">Выбрано %1$d переопределения</item>
     </plurals>
     <string name="subscription_overrides">Переопределения</string>
+    <!-- Home-screen widget -->
+    <string name="widget_status_running">Работает</string>
+    <string name="widget_status_starting">Запуск…</string>
+    <string name="widget_status_stopping">Остановка…</string>
+    <string name="widget_status_error">Ошибка</string>
+    <string name="widget_status_stopped">Остановлено</string>
+    <string name="widget_no_node">Нет узла</string>
+    <string name="widget_mode_value">Режим: %1$s</string>
+    <string name="widget_node_value">Узел: %1$s</string>
+    <string name="widget_upload_value">↑ %1$s</string>
+    <string name="widget_download_value">↓ %1$s</string>
+    <string name="widget_start">Запустить</string>
+    <string name="widget_stop">Остановить</string>
+    <string name="widget_description">Статус прокси Mishka и быстрый переключатель</string>
+    <!-- Config diagnostics -->
+    <string name="settings_diagnostics">Диагностика</string>
+    <string name="settings_diagnostics_summary">Предпросмотр итогового конфига, цепочки transform и runtime override</string>
+    <string name="diagnostics_active_profile">Активный профиль</string>
+    <string name="diagnostics_profile_name">Имя</string>
+    <string name="diagnostics_profile_type">Тип</string>
+    <string name="diagnostics_age_encrypted">Шифрование age</string>
+    <string name="diagnostics_no_active_profile">Нет активного профиля</string>
+    <string name="diagnostics_loading">Загрузка…</string>
+    <string name="diagnostics_unavailable">Недоступно</string>
+    <string name="diagnostics_validation">Проверка</string>
+    <string name="diagnostics_validation_state">Целостность конфига</string>
+    <string name="diagnostics_not_run">Не запускалась</string>
+    <string name="diagnostics_validating">Проверка…</string>
+    <string name="diagnostics_valid">Корректно</string>
+    <string name="diagnostics_invalid">Ошибка</string>
+    <string name="diagnostics_validate">Проверить</string>
+    <string name="diagnostics_transform">Цепочка transform</string>
+    <string name="diagnostics_transform_none">К этому профилю не применён transform</string>
+    <string name="diagnostics_origin_subscription">Подписка</string>
+    <string name="diagnostics_origin_tailscale">Tailscale</string>
+    <string name="diagnostics_tailscale">Tailscale</string>
+    <string name="diagnostics_runtime">Runtime override</string>
+    <string name="diagnostics_summary">Сводка</string>
+    <string name="diagnostics_override_count">Выбрано переопределений</string>
+    <string name="diagnostics_root_mode">Режим ROOT</string>
+    <string name="diagnostics_yes">Да</string>
+    <string name="diagnostics_no">Нет</string>
+    <string name="tailscale_secure_storage_unavailable">Защищённое хранилище недоступно; ключ авторизации не сохранён.</string>
+    <string name="tailscale_hostname_default">Использовать имя устройства Android</string>
+    <string name="tailscale_hostname_restart_required">Смена имени устройства вступит в силу после перезапуска прокси.</string>
 </resources>

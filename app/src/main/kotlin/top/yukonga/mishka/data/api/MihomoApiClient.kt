@@ -2,6 +2,7 @@ package top.yukonga.mishka.data.api
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
@@ -30,6 +31,7 @@ import top.yukonga.mishka.domain.model.ProxiesResponse
 import top.yukonga.mishka.domain.model.RuleProvidersResponse
 import top.yukonga.mishka.domain.model.RulesResponse
 import top.yukonga.mishka.domain.model.TailscaleStatus
+import java.net.Proxy
 
 class MihomoApiClient(
     private val baseUrl: String = "http://127.0.0.1:9090",
@@ -41,7 +43,12 @@ class MihomoApiClient(
         coerceInputValues = true
     }
 
-    private val client = HttpClient {
+    private val client = HttpClient(OkHttp) {
+        engine {
+            // Android 的全局 HTTP 代理可能把 127.0.0.1 的控制面请求转发出去；
+            // mihomo API 只应直连本机，订阅/测速等需要代理的请求使用独立 client。
+            config { proxy(Proxy.NO_PROXY) }
+        }
         install(ContentNegotiation) {
             json(json)
         }

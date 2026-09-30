@@ -5,6 +5,7 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import androidx.room3.Update
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PendingDao {
@@ -19,6 +20,9 @@ interface PendingDao {
 
     @Query("DELETE FROM pending WHERE uuid = :uuid")
     suspend fun remove(uuid: String)
+
+    @Query("SELECT * FROM pending ORDER BY createdAt")
+    fun getAllFlow(): Flow<List<PendingEntity>>
 
     @Query("SELECT * FROM pending ORDER BY createdAt")
     suspend fun queryAll(): List<PendingEntity>

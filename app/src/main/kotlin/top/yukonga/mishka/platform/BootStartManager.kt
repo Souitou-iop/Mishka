@@ -2,11 +2,12 @@ package top.yukonga.mishka.platform
 
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import top.yukonga.mishka.service.BootReceiver
 
 class BootStartManager constructor(private val context: PlatformContext) {
 
     private fun getBootReceiverComponent(): ComponentName {
-        return ComponentName(context.packageName, "${context.packageName}.service.BootReceiver")
+        return ComponentName(context.packageName, BootReceiver::class.java.name)
     }
 
     fun setEnabled(enabled: Boolean) {

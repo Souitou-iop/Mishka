@@ -76,6 +76,7 @@ fun BackupRestoreScreen(
     var showWebDavDialog by remember { mutableStateOf(false) }
     // 恢复来源（本地文件 / WebDAV）共用同一个覆盖确认对话框，确认后执行挂起的动作
     var pendingRestoreAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var confirmLegacyExport by remember { mutableStateOf(false) }
 
     val backdrop = rememberBlurBackdrop()
     val blurActive = backdrop != null
@@ -190,6 +191,10 @@ fun BackupRestoreScreen(
             showWebDavDialog = false
             pendingRestoreAction = { viewModel.restore() }
         },
+        onExportLegacy = {
+            showWebDavDialog = false
+            confirmLegacyExport = true
+        },
     )
 
     WindowDialog(
@@ -215,6 +220,33 @@ fun BackupRestoreScreen(
                     val action = pendingRestoreAction
                     pendingRestoreAction = null
                     action?.invoke()
+                },
+            )
+        }
+    }
+
+    WindowDialog(
+        show = confirmLegacyExport,
+        title = stringResource(R.string.backup_export_legacy_confirm_title),
+        summary = stringResource(R.string.backup_export_legacy_confirm_summary),
+        onDismissRequest = { confirmLegacyExport = false },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            TextButton(
+                text = stringResource(R.string.common_cancel),
+                modifier = Modifier.weight(1f),
+                onClick = { confirmLegacyExport = false },
+            )
+            TextButton(
+                text = stringResource(R.string.common_confirm),
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                onClick = {
+                    confirmLegacyExport = false
+                    viewModel.exportLegacyBackup()
                 },
             )
         }
@@ -298,6 +330,7 @@ private fun WebDavDialog(
     onTest: () -> Unit,
     onBackup: () -> Unit,
     onRestore: () -> Unit,
+    onExportLegacy: () -> Unit,
 ) {
     var url by remember { mutableStateOf(storage.getString(StorageKeys.WEBDAV_URL, "")) }
     var username by remember { mutableStateOf(storage.getString(StorageKeys.WEBDAV_USERNAME, "")) }
@@ -364,6 +397,20 @@ private fun WebDavDialog(
                     },
                     enabled = !isBusy,
                     onClick = onBackup,
+                    insideMargin = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                )
+                ArrowPreference(
+                    title = stringResource(R.string.backup_export_legacy),
+                    startAction = {
+                        Icon(
+                            imageVector = MiuixIcons.Backup,
+                            contentDescription = null,
+                            modifier = Modifier.padding(end = 16.dp),
+                            tint = MiuixTheme.colorScheme.onSurface,
+                        )
+                    },
+                    enabled = !isBusy,
+                    onClick = onExportLegacy,
                     insideMargin = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
                 )
                 ArrowPreference(

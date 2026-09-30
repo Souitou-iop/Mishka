@@ -13,7 +13,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import top.yukonga.mishka.R
 import top.yukonga.mishka.data.backup.BackupManager
+import top.yukonga.mishka.data.backup.RemoteBackup
 import top.yukonga.mishka.data.backup.WebDavClient
+import top.yukonga.mishka.data.backup.WebDavStaleException
 import top.yukonga.mishka.platform.PlatformStorage
 import top.yukonga.mishka.platform.ProxyServiceBridge
 import top.yukonga.mishka.platform.ProxyState
@@ -26,6 +28,7 @@ import kotlin.coroutines.resume
 data class BackupUiState(
     val isBusy: Boolean = false,
     val restoreCompleted: Boolean = false,
+    val remoteSnapshots: List<RemoteBackup> = emptyList(),
 )
 
 class BackupViewModel(
@@ -51,29 +54,67 @@ class BackupViewModel(
     fun testConnection() = runBusy {
         val client = client() ?: return@runBusy
         client.testConnection()
+        refreshRemoteSnapshots(client)
         showToast(context.getString(R.string.backup_connection_ok))
     }
 
     fun backup() = runBusy {
         val client = client() ?: return@runBusy
+        val localVersion = syncVersion()
+        val snapshot = backupManager.withTransferFile { file ->
+            backupManager.writeBackupTo(file)
+            client.uploadNextSnapshot(file, localVersion)
+        }
+        storage.putString(StorageKeys.WEBDAV_SYNC_VERSION, snapshot.version.toString())
+        client.pruneSnapshots()
+        refreshRemoteSnapshots(client)
+        showToast(context.getString(R.string.backup_done))
+    }
+
+    /** Writes the legacy fixed file only after an explicit user confirmation. */
+    fun exportLegacyBackup() = runBusy {
+        val client = client() ?: return@runBusy
         backupManager.withTransferFile { file ->
             backupManager.writeBackupTo(file)
-            client.upload(file)
+            client.uploadLegacy(file)
         }
-        showToast(context.getString(R.string.backup_done))
+        showToast(context.getString(R.string.backup_export_legacy_done))
     }
 
     fun restore() = runBusy {
         if (!ensureProxyStopped()) return@runBusy
         val client = client() ?: return@runBusy
-        backupManager.withTransferFile { file ->
-            if (!client.download(file)) {
-                showToast(context.getString(R.string.backup_not_found))
-                return@withTransferFile
+        val snapshots = client.listSnapshots()
+            .sortedWith(compareByDescending<RemoteBackup> { it.version }.thenByDescending { it.name })
+        val restored = backupManager.withTransferFile { file ->
+            val latest = snapshots.firstOrNull()
+            when {
+                latest != null -> {
+                    client.downloadSnapshot(latest.name, file)
+                    backupManager.restoreBackupFrom(file)
+                    storage.putString(
+                        StorageKeys.WEBDAV_SYNC_VERSION,
+                        maxOf(syncVersion(), latest.version).toString(),
+                    )
+                    true
+                }
+                client.downloadLegacy(file) -> {
+                    backupManager.restoreBackupFrom(file)
+                    true
+                }
+                else -> false
             }
-            backupManager.restoreBackupFrom(file)
+        }
+        if (!restored) {
+            showToast(context.getString(R.string.backup_not_found))
+        } else {
             _uiState.update { it.copy(restoreCompleted = true) }
         }
+    }
+
+    fun refreshSnapshots() = runBusy {
+        val client = client() ?: return@runBusy
+        refreshRemoteSnapshots(client)
     }
 
     /**
@@ -95,6 +136,15 @@ class BackupViewModel(
         _uiState.update { it.copy(restoreCompleted = true) }
     }
 
+    private suspend fun refreshRemoteSnapshots(client: WebDavClient) {
+        val snapshots = client.listSnapshots()
+            .sortedWith(compareByDescending<RemoteBackup> { it.version }.thenByDescending { it.name })
+        _uiState.update { it.copy(remoteSnapshots = snapshots) }
+    }
+
+    private fun syncVersion(): Long =
+        storage.getString(StorageKeys.WEBDAV_SYNC_VERSION, "0").toLongOrNull()?.coerceAtLeast(0) ?: 0
+
     // 恢复覆盖 imported/ 与 DB，代理运行/过渡态期间禁止（mihomo 正在读这些文件）
     private fun ensureProxyStopped(): Boolean {
         val state = ProxyServiceBridge.state.value.state
@@ -111,6 +161,8 @@ class BackupViewModel(
         viewModelScope.launch {
             try {
                 block()
+            } catch (e: WebDavStaleException) {
+                showToast(context.getString(R.string.backup_remote_newer), long = true)
             } catch (e: Throwable) {
                 showToast(context.getString(R.string.backup_failed, e.describe()), long = true)
             } finally {

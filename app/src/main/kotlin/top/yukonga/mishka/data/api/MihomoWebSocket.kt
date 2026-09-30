@@ -1,6 +1,7 @@
 package top.yukonga.mishka.data.api
 
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocket
 import io.ktor.websocket.Frame
@@ -21,6 +22,7 @@ import top.yukonga.mishka.domain.model.ConnectionsResponse
 import top.yukonga.mishka.domain.model.LogMessage
 import top.yukonga.mishka.domain.model.MemoryData
 import top.yukonga.mishka.domain.model.TrafficData
+import java.net.Proxy
 
 class MihomoWebSocket(
     private val apiClient: MihomoApiClient,
@@ -31,7 +33,11 @@ class MihomoWebSocket(
         coerceInputValues = true
     }
 
-    private val wsClient = HttpClient {
+    private val wsClient = HttpClient(OkHttp) {
+        engine {
+            // 控制面 WebSocket 与 REST 一样必须绕过 Android 的全局 HTTP 代理。
+            config { proxy(Proxy.NO_PROXY) }
+        }
         install(WebSockets) {
             pingIntervalMillis = 20_000
         }

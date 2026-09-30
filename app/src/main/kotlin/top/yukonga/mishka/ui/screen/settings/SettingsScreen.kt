@@ -54,6 +54,7 @@ fun SettingsScreen(
     onNavigateFileManager: () -> Unit = {},
     onNavigateOverrides: () -> Unit = {},
     onNavigateBackup: () -> Unit = {},
+    onNavigateDiagnostics: () -> Unit = {},
     onNavigateAbout: () -> Unit = {},
     bootStartManager: BootStartManager? = null,
     storage: PlatformStorage? = null,
@@ -238,6 +239,13 @@ fun SettingsScreen(
                                 onClick = onNavigateBackup,
                             )
                         })
+                        add(CardItem("diagnostics") {
+                            ArrowPreference(
+                                title = stringResource(R.string.settings_diagnostics),
+                                summary = stringResource(R.string.settings_diagnostics_summary),
+                                onClick = onNavigateDiagnostics,
+                            )
+                        })
                     },
                 )
                 item {
@@ -262,15 +270,10 @@ fun SettingsScreen(
                             })
                         }
                         add(CardItem("dynamicNotification") {
-                            val isVpnMode = tunModeIndex == 0
                             SwitchPreference(
                                 title = stringResource(R.string.settings_dynamic_notification),
-                                summary = stringResource(
-                                    if (isVpnMode) R.string.settings_dynamic_notification_summary
-                                    else R.string.settings_dynamic_notification_summary_root_unsupported
-                                ),
-                                checked = isDynamicNotificationEnabled && isVpnMode,
-                                enabled = isVpnMode,
+                                summary = stringResource(R.string.settings_dynamic_notification_summary),
+                                checked = isDynamicNotificationEnabled,
                                 onCheckedChange = { checked ->
                                     storage?.putString(StorageKeys.DYNAMIC_NOTIFICATION, if (checked) "true" else "false")
                                     isDynamicNotificationEnabled = checked

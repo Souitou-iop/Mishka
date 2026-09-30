@@ -27,6 +27,7 @@ import top.yukonga.mishka.viewmodel.AppProxyViewModel
 import top.yukonga.mishka.viewmodel.BackupViewModel
 import top.yukonga.mishka.viewmodel.ConnectionViewModel
 import top.yukonga.mishka.viewmodel.DnsQueryViewModel
+import top.yukonga.mishka.viewmodel.DiagnosticsViewModel
 import top.yukonga.mishka.viewmodel.ExternalControlViewModel
 import top.yukonga.mishka.viewmodel.HomeViewModel
 import top.yukonga.mishka.viewmodel.LogViewModel
@@ -57,6 +58,7 @@ fun App(
     dnsQueryViewModel: DnsQueryViewModel? = null,
     networkSettingsViewModel: NetworkSettingsViewModel? = null,
     metaSettingsViewModel: MetaSettingsViewModel? = null,
+    diagnosticsViewModel: DiagnosticsViewModel? = null,
     externalControlViewModel: ExternalControlViewModel? = null,
     appProxyViewModel: AppProxyViewModel? = null,
     filePicker: FilePicker? = null,
@@ -72,6 +74,8 @@ fun App(
     hasRootPermission: Boolean = false,
     deepLinkImport: DeepLinkImportRequest? = null,
     onDeepLinkImportConsumed: () -> Unit = {},
+    shortcutNavigation: ShortcutNavigation? = null,
+    onShortcutConsumed: () -> Unit = {},
     backupViewModel: BackupViewModel? = null,
     onRestartApp: () -> Unit = {},
 ) {
@@ -144,6 +148,7 @@ fun App(
                 dnsQueryViewModel = dnsQueryViewModel,
                 networkSettingsViewModel = networkSettingsViewModel,
                 metaSettingsViewModel = metaSettingsViewModel,
+                diagnosticsViewModel = diagnosticsViewModel,
                 externalControlViewModel = externalControlViewModel,
                 appProxyViewModel = appProxyViewModel,
                 filePicker = filePicker,
@@ -159,6 +164,8 @@ fun App(
                 hasRootPermission = hasRootPermission,
                 deepLinkImport = deepLinkImport,
                 onDeepLinkImportConsumed = onDeepLinkImportConsumed,
+                shortcutNavigation = shortcutNavigation,
+                onShortcutConsumed = onShortcutConsumed,
                 backupViewModel = backupViewModel,
                 onRestartApp = onRestartApp,
             )

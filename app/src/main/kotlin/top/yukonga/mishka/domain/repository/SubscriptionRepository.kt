@@ -31,6 +31,9 @@ interface SubscriptionRepository {
     /** 立即返回已选订阅 ID，不等待订阅列表 Flow 回填。 */
     fun getActiveId(): String?
 
+    /** 同步从数据库刷新消费快照，供 CLI 等非长期订阅方读取刚提交的变更。 */
+    suspend fun refresh()
+
     /** 保存订阅选择的覆写 ID 与执行顺序。 */
     suspend fun setOverrideSelection(subscriptionId: String, overrideIds: List<String>, sortPreference: List<String>)
 

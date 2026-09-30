@@ -67,6 +67,7 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import top.yukonga.mishka.DeepLinkImportRequest
+import top.yukonga.mishka.ShortcutNavigation
 import top.yukonga.mishka.R
 import top.yukonga.mishka.domain.repository.MihomoRepository
 import top.yukonga.mishka.platform.BootStartManager
@@ -86,6 +87,7 @@ import top.yukonga.mishka.ui.screen.proxy.ProxyScreen
 import top.yukonga.mishka.ui.screen.settings.AboutScreen
 import top.yukonga.mishka.ui.screen.settings.AppProxyScreen
 import top.yukonga.mishka.ui.screen.settings.BackupRestoreScreen
+import top.yukonga.mishka.ui.screen.settings.DiagnosticsScreen
 import top.yukonga.mishka.ui.screen.settings.ExternalControlScreen
 import top.yukonga.mishka.ui.screen.settings.FileManagerEditorScreen
 import top.yukonga.mishka.ui.screen.settings.FileManagerScreen
@@ -115,6 +117,7 @@ import top.yukonga.mishka.viewmodel.AppProxyViewModel
 import top.yukonga.mishka.viewmodel.BackupViewModel
 import top.yukonga.mishka.viewmodel.ConnectionViewModel
 import top.yukonga.mishka.viewmodel.DnsQueryViewModel
+import top.yukonga.mishka.viewmodel.DiagnosticsViewModel
 import top.yukonga.mishka.viewmodel.ExternalControlViewModel
 import top.yukonga.mishka.viewmodel.HomeUiState
 import top.yukonga.mishka.viewmodel.HomeViewModel
@@ -201,6 +204,7 @@ fun AppNavigation(
     dnsQueryViewModel: DnsQueryViewModel? = null,
     networkSettingsViewModel: NetworkSettingsViewModel? = null,
     metaSettingsViewModel: MetaSettingsViewModel? = null,
+    diagnosticsViewModel: DiagnosticsViewModel? = null,
     externalControlViewModel: ExternalControlViewModel? = null,
     appProxyViewModel: AppProxyViewModel? = null,
     filePicker: FilePicker? = null,
@@ -216,6 +220,8 @@ fun AppNavigation(
     hasRootPermission: Boolean = false,
     deepLinkImport: DeepLinkImportRequest? = null,
     onDeepLinkImportConsumed: () -> Unit = {},
+    shortcutNavigation: ShortcutNavigation? = null,
+    onShortcutConsumed: () -> Unit = {},
     backupViewModel: BackupViewModel? = null,
     onRestartApp: () -> Unit = {},
 ) {
@@ -242,6 +248,15 @@ fun AppNavigation(
             )
             onDeepLinkImportConsumed()
         }
+    }
+
+    // 快捷方式导航：先回 Main，再按请求切主 Tab 或压一个二级页；与深链导入各自独立消费
+    LaunchedEffect(shortcutNavigation) {
+        val navigation = shortcutNavigation ?: return@LaunchedEffect
+        navigator.popUntil { key -> key is Route.Main }
+        navigation.page?.let { mainPagerState.animateToPage(it) }
+        navigation.route?.let { navigator.push(it) }
+        onShortcutConsumed()
     }
 
     LaunchedEffect(mainPagerState.pagerState.currentPage) {
@@ -289,6 +304,7 @@ fun AppNavigation(
                     onHideTaskCardChange,
                     hasRootPermission,
                     useNavigationRail,
+                    diagnosticsViewModel,
                 )
             }
             entry<Route.SubscriptionAdd>(swipeDismiss = swipeDismiss) {
@@ -526,6 +542,14 @@ fun AppNavigation(
                     onBack = { navigator.pop() },
                 )
             }
+            entry<Route.Diagnostics>(swipeDismiss = swipeDismiss) {
+                diagnosticsViewModel?.let {
+                    DiagnosticsScreen(
+                        builder = it.builder,
+                        onBack = { navigator.pop() },
+                    )
+                }
+            }
             entry<Route.About>(swipeDismiss = swipeDismiss) {
                 val uriHandler = LocalUriHandler.current
                 AboutScreen(
@@ -551,6 +575,7 @@ private fun MainPage(
     onHideTaskCardChange: ((Boolean) -> Unit)? = null,
     hasRootPermission: Boolean = false,
     useNavigationRail: Boolean = false,
+    diagnosticsViewModel: DiagnosticsViewModel? = null,
 ) {
     val homeUiState = homeViewModel?.uiState?.collectAsStateWithLifecycle()?.value ?: HomeUiState()
     val selectedPage = mainPagerState.selectedPage
@@ -626,6 +651,7 @@ private fun MainPage(
                     onNavigateFileManager = { navigator.push(Route.FileManager) },
                     onNavigateOverrides = { navigator.push(Route.OverrideList) },
                     onNavigateBackup = { navigator.push(Route.BackupRestore) },
+                    onNavigateDiagnostics = { navigator.push(Route.Diagnostics) },
                     onNavigateAbout = { navigator.push(Route.About) },
                     bootStartManager = bootStartManager,
                     storage = storage,

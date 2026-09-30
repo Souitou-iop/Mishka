@@ -410,6 +410,9 @@ class BackupManager(
             StorageKeys.WEBDAV_URL,
             StorageKeys.WEBDAV_USERNAME,
             StorageKeys.WEBDAV_PASSWORD,
+            StorageKeys.WEBDAV_SYNC_VERSION,
+            // 敏感凭据：Keystore 加密落地，既不该跨设备搬运，也绝不能进明文 zip（备用保险）
+            StorageKeys.TAILSCALE_AUTH_KEY,
         )
     }
 }

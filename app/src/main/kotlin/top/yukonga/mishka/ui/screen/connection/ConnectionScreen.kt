@@ -59,6 +59,7 @@ import top.yukonga.mishka.ui.component.blur.BlurredBar
 import top.yukonga.mishka.ui.component.blur.rememberBlurBackdrop
 import top.yukonga.mishka.ui.component.rememberSearchBarTopPadding
 import top.yukonga.mishka.ui.component.rememberSearchScreenStatus
+import top.yukonga.mishka.ui.platform.AppIcon
 import top.yukonga.mishka.ui.util.horizontalCutoutPadding
 import top.yukonga.mishka.util.FormatUtils
 import top.yukonga.mishka.viewmodel.ConnectionViewModel
@@ -381,6 +382,11 @@ private fun ConnectionItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            // mihomo 在 Android 上将解析出的包名放在 metadata.process；空值由 AppIcon 保持占位图。
+            AppIcon(
+                packageName = meta.process,
+                size = 32.dp,
+            )
             Box(
                 modifier = Modifier
                     .squircleBackground(MiuixTheme.colorScheme.onSurface.copy(alpha = 0.08f), 3.dp)

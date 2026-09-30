@@ -30,14 +30,18 @@ fun AppIcon(
 ) {
     val context = LocalContext.current
     val sizePx = with(LocalDensity.current) { size.roundToPx() }
+    val normalizedPackageName = packageName.trim()
+    val hasPackageName = normalizedPackageName.isNotEmpty()
 
-    val cached = remember(packageName) { AppIconCache.getFromCache(packageName) }
-    var bitmap by remember(packageName) { mutableStateOf(cached) }
+    val cached = remember(normalizedPackageName) {
+        normalizedPackageName.takeIf { hasPackageName }?.let(AppIconCache::getFromCache)
+    }
+    var bitmap by remember(normalizedPackageName) { mutableStateOf(cached) }
 
-    if (cached == null) {
-        LaunchedEffect(packageName) {
+    if (cached == null && hasPackageName) {
+        LaunchedEffect(normalizedPackageName) {
             try {
-                bitmap = AppIconCache.loadIcon(context, packageName, sizePx)
+                bitmap = AppIconCache.loadIcon(context, normalizedPackageName, sizePx)
             } catch (_: Exception) {
                 // 加载失败，保持 null
             }

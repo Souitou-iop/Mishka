@@ -22,7 +22,7 @@ import java.io.File
  */
 object RuntimeOverrideBuilder {
 
-    private const val FILE_NAME = "override.run.json"
+    internal const val RUNTIME_FILE_NAME = "override.run.json"
     internal const val DEFAULT_TUN_DEVICE = "Mishka"
 
     // VPN/ROOT TUN 共用 MTU。VpnService.Builder.setMtu 与 sing-tun cfg.Tun.MTU 必须同值：
@@ -37,6 +37,19 @@ object RuntimeOverrideBuilder {
     // 「通过代理更新订阅」开启且用户未显式配置 mixed-port 时的兜底默认值，
     // 确保 mihomo 一定监听 HTTP 代理端口，让 SubscriptionProxyResolver 稳定解析到
     internal const val DEFAULT_MIXED_PORT = 7890
+
+    /** Inputs derived from Android storage/context before the pure TUN override calculation. */
+    internal data class TunOverrideInputs(
+        val tunMode: TunMode,
+        val tunFd: Int,
+        val userTun: TunOverride?,
+        val selfPackage: String,
+        val appProxyMode: AppProxyMode = AppProxyMode.AllowAll,
+        val appProxyPackages: Set<String> = emptySet(),
+        val ipv6Enabled: Boolean = false,
+        val rootTunDevice: String = DEFAULT_TUN_DEVICE,
+        val jumboMtu: Boolean = true,
+    )
 
     private val json = Json {
         encodeDefaults = false
@@ -78,20 +91,8 @@ object RuntimeOverrideBuilder {
             externalController = null,
             secret = null,
             mode = wifiRuntimeMode ?: userOverride.mode,
-            mixedPort = when {
-                userOverride.mixedPort != null -> userOverride.mixedPort
-                subscriptionMixedPort != null -> null
-                subscriptionUpdateViaProxy -> DEFAULT_MIXED_PORT
-                else -> null
-            },
-            tproxyPort = when (tunMode) {
-                // RootTproxy：mihomo 主入站就是 tproxy，端口锁定
-                TunMode.RootTproxy -> RootTproxyApplier.TPROXY_PORT
-                // RootTun：xt_TPROXY 可用 + 用户选 PROXY tether 时开 tproxy 入站（RootTetherHijacker 用）
-                TunMode.RootTun -> if (tproxyForTether) RootTetherHijacker.TPROXY_PORT else userOverride.tproxyPort
-                // Vpn：透传用户 override
-                TunMode.Vpn -> userOverride.tproxyPort
-            },
+            mixedPort = resolveMixedPort(userOverride, subscriptionUpdateViaProxy, subscriptionMixedPort),
+            tproxyPort = resolveTproxyPort(tunMode, userOverride.tproxyPort, tproxyForTether),
             // RootTproxy 下**不**注入 routing-mark：Android Netd 用 fwmark 低 16 位编码 netId，
             // mihomo 若带 SO_MARK 会被解释为不存在的 netId，命中 legacy_system 表（无默认路由）
             // → mihomo 出站全部 `network unreachable`。iptables 改用 `-m owner --uid-owner 0`
@@ -104,13 +105,62 @@ object RuntimeOverrideBuilder {
             tcpConcurrent = userOverride.tcpConcurrent ?: true,
             findProcessMode = userOverride.findProcessMode ?: "off",
             dns = buildDnsOverride(tunMode, userOverride.dns),
-            tun = buildTunOverride(context, tunMode, tunFd, userOverride.tun),
+            tun = buildTunOverride(
+                TunOverrideInputs(
+                    tunMode = tunMode,
+                    tunFd = tunFd,
+                    userTun = userOverride.tun,
+                    selfPackage = context.packageName,
+                    appProxyMode = parseAppProxyMode(
+                        storage.getString(StorageKeys.APP_PROXY_MODE, AppProxyMode.AllowAll.name),
+                    ),
+                    appProxyPackages = storage.getStringSet(StorageKeys.APP_PROXY_PACKAGES, emptySet()),
+                    ipv6Enabled = storage.getString(StorageKeys.VPN_ALLOW_IPV6, "false") == "true",
+                    rootTunDevice = storage.getString(StorageKeys.ROOT_TUN_DEVICE, DEFAULT_TUN_DEVICE),
+                    jumboMtu = storage.getString(StorageKeys.ROOT_TUN_JUMBO_MTU, "true") == "true",
+                ),
+            ),
             profile = ProfileOverride(storeSelected = false, storeFakeIp = true),
         )
         // 原子写：mihomo 紧接着就以 --override-json 读它，半个 JSON 会让启动失败且难以定位
-        val file = File(ConfigGenerator.getWorkDir(context), FILE_NAME)
+        val file = File(ConfigGenerator.getWorkDir(context), RUNTIME_FILE_NAME)
         ProfileFileOps.writeAtomically(file, json.encodeToString(merged))
         return file
+    }
+
+    /**
+     * mixed-port 决策（见 [buildAndWriteForRun] 文档）：用户显式值 > 订阅 yaml 自带（返回 null 不注入）
+     * > 通过代理更新订阅的兜底默认值 > 不注入。
+     */
+    internal fun resolveMixedPort(
+        userOverride: ConfigurationOverride,
+        subscriptionUpdateViaProxy: Boolean,
+        subscriptionMixedPort: Int?,
+    ): Int? = when {
+        userOverride.mixedPort != null -> userOverride.mixedPort
+        subscriptionMixedPort != null -> null
+        subscriptionUpdateViaProxy -> DEFAULT_MIXED_PORT
+        else -> null
+    }
+
+    /**
+     * 该 mixed-port 是否由本 builder 作为兜底注入（而非用户 / 订阅显式设置）。
+     * 诊断页据此把「兜底默认值」与「用户选定值」区分开。
+     */
+    internal fun isRuntimeMixedPort(port: Int): Boolean = port == DEFAULT_MIXED_PORT
+
+    /**
+     * tproxy-port 决策：RootTproxy 锁定内核入站端口；RootTun 仅在 tether PROXY 路径占用该端口，
+     * 否则透传用户值；Vpn 完全不改写。
+     */
+    internal fun resolveTproxyPort(
+        tunMode: TunMode,
+        userTproxyPort: Int?,
+        tproxyForTether: Boolean,
+    ): Int? = when (tunMode) {
+        TunMode.RootTproxy -> RootTproxyApplier.TPROXY_PORT
+        TunMode.RootTun -> if (tproxyForTether) RootTetherHijacker.TPROXY_PORT else userTproxyPort
+        TunMode.Vpn -> userTproxyPort
     }
 
     /**
@@ -118,7 +168,7 @@ object RuntimeOverrideBuilder {
      * iptables 的 `nat REDIRECT --to-ports 1053` 把系统 DNS 查询导到这里。
      * 保留用户的 `enhanced-mode`（fake-ip / redir-host 任选）和其他字段。
      */
-    private fun buildDnsOverride(tunMode: TunMode, userDns: DnsOverride?): DnsOverride? {
+    internal fun buildDnsOverride(tunMode: TunMode, userDns: DnsOverride?): DnsOverride? {
         if (tunMode != TunMode.RootTproxy) return userDns
         val base = userDns ?: DnsOverride()
         return base.copy(
@@ -127,18 +177,15 @@ object RuntimeOverrideBuilder {
         )
     }
 
-    private fun buildTunOverride(
-        context: Context,
-        tunMode: TunMode,
-        tunFd: Int,
-        userTun: TunOverride?,
-    ): TunOverride {
+    internal fun buildTunOverride(inputs: TunOverrideInputs): TunOverride {
+        val tunMode = inputs.tunMode
+        val tunFd = inputs.tunFd
+        val userTun = inputs.userTun
         // RootTproxy：TUN 完全关闭，sing-tun 不初始化
         if (tunMode == TunMode.RootTproxy) {
             return TunOverride(enable = false)
         }
 
-        val storage = PlatformStorage(context)
         val isRootTun = tunMode == TunMode.RootTun
 
         // 分应用代理：仅 RootTun 通过 mihomo include/exclude-package 实现；
@@ -148,10 +195,9 @@ object RuntimeOverrideBuilder {
         val include: List<String>?
         val exclude: List<String>?
         if (isRootTun) {
-            val selfPkg = context.packageName
-            val proxyMode = parseAppProxyMode(storage.getString(StorageKeys.APP_PROXY_MODE, AppProxyMode.AllowAll.name))
-            val packages = storage.getStringSet(StorageKeys.APP_PROXY_PACKAGES, emptySet())
-            when (proxyMode) {
+            val selfPkg = inputs.selfPackage
+            val packages = inputs.appProxyPackages
+            when (inputs.appProxyMode) {
                 // 空列表时用无效包名占位，确保不代理任何应用
                 AppProxyMode.AllowSelected -> {
                     val filtered = packages.filter { it != selfPkg }
@@ -174,7 +220,7 @@ object RuntimeOverrideBuilder {
             exclude = null
         }
 
-        val ipv6Enabled = storage.getString(StorageKeys.VPN_ALLOW_IPV6, "false") == "true"
+        val ipv6Enabled = inputs.ipv6Enabled
         // null 会被序列化省略；关闭时必须用空列表清除内核默认的 IPv6 地址。
         val inet6 = when {
             isRootTun && ipv6Enabled -> listOf("fdfe:dcba:9876::1/126")
@@ -194,14 +240,14 @@ object RuntimeOverrideBuilder {
         }
 
         val device = userTun?.device
-            ?: if (isRootTun) storage.getString(StorageKeys.ROOT_TUN_DEVICE, DEFAULT_TUN_DEVICE) else null
+            ?: if (isRootTun) inputs.rootTunDevice else null
 
         // sing-tun userspace TUN 性能：mtu=9000 + gso + gso-max-size=65535 让大包聚合，
         // 减少每包 read syscall；仅 ROOT TUN 注入 GSO（VPN fd 由 VpnService 创建无 vnet header）。
         // 用户 override 的同名字段优先级最高，允许极端 ROM 下手动回退。
         // VPN 模式 MTU 必须与 VpnService.Builder.setMtu 同步：sing-tun fd 模式给 gvisor fdbased.New
         // 用 cfg.Tun.MTU 设 endpoint 缓冲，0 时所有 read 失败 → VPN 表面"延迟正常但流量不通"。
-        val jumbo = storage.getString(StorageKeys.ROOT_TUN_JUMBO_MTU, "true") == "true"
+        val jumbo = inputs.jumboMtu
         val defaultMtu: Int = if (isRootTun && !jumbo) 1500 else VPN_TUN_MTU
         val rootTunGso: Boolean? = if (isRootTun) jumbo else null
         val rootTunGsoMax: Int? = if (isRootTun && jumbo) 65535 else null

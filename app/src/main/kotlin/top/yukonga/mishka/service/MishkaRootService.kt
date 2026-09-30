@@ -72,13 +72,17 @@ class MishkaRootService : Service() {
     private var monitorJob: Job? = null
     private var notificationRefreshJob: Job? = null
 
+    // 仅观测默认网络切换（诊断/保护信号），不在切换时动 mihomo 与规则——
+    // 见 [NetworkHandoverMonitor] 的取舍说明。随 Running 态存续。
+    private var handoverJob: Job? = null
+    private var handoverObserving = false
+
     // 自动连接与补发 BOOT_COMPLETED 的 BootReceiver 会各发一次 ACTION_START，两条启动协程
     // 并发跑 iptables 会互抢 xtables.lock。@Volatile：主线程写，stop/restart 在 IO 协程读
     @Volatile
     private var startJob: Job? = null
 
-    @Volatile
-    private var startJobAttachOnly = false
+    private val startState = ServiceStartStateMachine()
 
     // 当前正在运行的 submode；由 onStartCommand 的 EXTRA_SUBMODE 设定
     @Volatile
@@ -119,6 +123,18 @@ class MishkaRootService : Service() {
                 }
             }
         }
+        handoverJob = scope.launch {
+            ProxyServiceBridge.state.collect { status ->
+                setHandoverObserving(status.state == ProxyState.Running && isRootRunning(status.tunMode))
+            }
+        }
+    }
+
+    /** 幂等：同一 Service 实例内 Running 态反复发射不应重复注册观测器。 */
+    private fun setHandoverObserving(active: Boolean) {
+        if (active == handoverObserving) return
+        handoverObserving = active
+        if (active) NetworkHandoverMonitor.start(this) else NetworkHandoverMonitor.stop()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -155,18 +171,18 @@ class MishkaRootService : Service() {
      * 进行中的 attach-only——后者失败只保持停止，而 fresh 请求要求「必须跑起来」。
      */
     private fun startProxy(subscriptionId: String? = null, attachOnly: Boolean = false) {
-        val inFlight = startJob?.takeIf { it.isActive }
+        val request = startState.request(attachOnly)
+        if (request == null) {
+            Log.i(TAG, "Start in progress, ignoring duplicate START (attachOnly=$attachOnly)")
+            return
+        }
+        val inFlight = request.superseded?.let { startJob?.takeIf { job -> job.isActive } }
         if (inFlight != null) {
-            if (attachOnly || !startJobAttachOnly) {
-                Log.i(TAG, "Start in progress, ignoring duplicate START (attachOnly=$attachOnly)")
-                return
-            }
             Log.i(TAG, "Fresh START supersedes in-flight attach-only start")
             inFlight.cancel()
         }
-        startJobAttachOnly = attachOnly
         startJob = scope.launch {
-            // 抢占时等被取消者收敛，避免两条协程同时跑 iptables
+            // 被抢占的 attach 协程：取消对它无效（全程无挂起点），靠它自己在 isActive 检查处让位
             inFlight?.join()
             val submode = currentSubmode
             val tunMode = submode.tunMode
@@ -287,6 +303,7 @@ class MishkaRootService : Service() {
                     return@launch
                 }
                 Log.i(TAG, "Attach-only reopen: no live mihomo to reconnect, staying stopped")
+                dynamicNotification.stop()
                 clearPersistedState(storage)
                 storage.putString(StorageKeys.SERVICE_WAS_RUNNING, "false")
                 ProxyServiceBridge.markStopped(tunMode)
@@ -450,6 +467,9 @@ class MishkaRootService : Service() {
                 subscriptionId
             ) else ConfigGenerator.getWorkDir(this@MishkaRootService)
             startProcessMonitor(workDir)
+        }.also { job ->
+            // token 随协程一起结束；前面返回的分支都 return@launch，也走这里
+            job.invokeOnCompletion { startState.complete(request.token) }
         }
     }
 
@@ -627,6 +647,8 @@ class MishkaRootService : Service() {
 
     override fun onDestroy() {
         notificationRefreshJob?.cancel()
+        handoverJob?.cancel()
+        setHandoverObserving(false)
         monitorJob?.cancel()
         dynamicNotification.stop()
         // 注意：onDestroy 不 kill mihomo，让它继续运行以便重连

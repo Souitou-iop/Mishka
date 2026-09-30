@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""Control a Mishka installation over the Android shell ContentProvider."""
+
+from __future__ import annotations
+
+import argparse
+import base64
+import json
+import re
+import subprocess
+import sys
+import time
+from typing import Any
+
+
+def adb(serial: str | None, *args: str, capture: bool = True) -> subprocess.CompletedProcess[str]:
+    command = ["adb"]
+    if serial:
+        command += ["-s", serial]
+    command += list(args)
+    return subprocess.run(command, text=True, capture_output=capture, check=False)
+
+
+def adb_binary(serial: str | None, *args: str, stdin=None, input_data: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
+    command = ["adb"]
+    if serial:
+        command += ["-s", serial]
+    command += list(args)
+    return subprocess.run(command, stdin=stdin, input=input_data, capture_output=True, check=False)
+
+
+def choose_serial(explicit: str | None) -> str:
+    if explicit:
+        return explicit
+    result = adb(None, "devices", "-l")
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "adb devices failed")
+    devices = [line.split("\t", 1)[0] for line in result.stdout.splitlines()[1:] if "\tdevice" in line]
+    if len(devices) == 1:
+        return devices[0]
+    if not devices:
+        raise RuntimeError("no authorized adb device; connect Redmi and authorize USB debugging")
+    raise RuntimeError("multiple adb devices; pass --serial:\n  " + "\n  ".join(devices))
+
+
+def parse_value(value: str) -> Any:
+    lowered = value.lower()
+    if lowered in {"true", "false"}:
+        return lowered == "true"
+    if lowered in {"null", "none"}:
+        return None
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return value
+
+
+def parse_tokens(tokens: list[str]) -> tuple[str, dict[str, Any]]:
+    if not tokens:
+        raise ValueError("missing command; run mishka-cli capabilities")
+    if tokens[0] == "call":
+        if len(tokens) < 2:
+            raise ValueError("call requires a command")
+        command = tokens[1]
+        rest = tokens[2:]
+    elif tokens[0] == "capabilities":
+        return "capabilities", {}
+    elif tokens[0] == "status":
+        return "status", {}
+    else:
+        if len(tokens) < 2:
+            raise ValueError("command requires a subcommand")
+        command = f"{tokens[0]}.{tokens[1]}"
+        rest = tokens[2:]
+
+    args: dict[str, Any] = {}
+    index = 0
+    while index < len(rest):
+        token = rest[index]
+        if not token.startswith("--"):
+            raise ValueError(f"unexpected argument: {token}")
+        item = token[2:]
+        if "=" in item:
+            key, value = item.split("=", 1)
+            args[key.replace("-", "_")] = parse_value(value)
+            index += 1
+            continue
+        key = item.replace("-", "_")
+        if index + 1 < len(rest) and not rest[index + 1].startswith("--"):
+            args[key] = parse_value(rest[index + 1])
+            index += 2
+        else:
+            args[key] = True
+            index += 1
+    return command, args
+
+
+def invoke_activity(serial: str, package: str, request: dict[str, Any]) -> dict[str, Any]:
+    """Run foreground-service commands through the transparent shell-only Activity bridge."""
+    payload = base64.b64encode(json.dumps(request, separators=(",", ":")).encode()).decode()
+    component = f"{package}/top.yukonga.mishka.cli.MishkaCliActivity"
+    adb_binary(serial, "shell", "content", "write", "--uri", f"content://{package}.cli/response", input_data=b"")
+    result = adb(serial, "shell", "am", "start", "-W", "-n", component, "--es", "request", payload)
+    if result.returncode != 0 or "Error:" in result.stdout or "Error:" in result.stderr:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "activity bridge failed")
+
+    uri = f"content://{package}.cli/response"
+    deadline = time.monotonic() + 10.0
+    last_error = "response not ready"
+    while time.monotonic() < deadline:
+        response = adb_binary(serial, "exec-out", "content", "read", "--uri", uri)
+        if response.returncode == 0 and response.stdout:
+            try:
+                decoded = response.stdout.decode()
+                parsed = json.loads(decoded)
+                # Do not leave command results in the app cache for a later invocation.
+                adb_binary(serial, "shell", "content", "write", "--uri", uri, input_data=b"")
+                return parsed
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                last_error = str(error)
+        time.sleep(0.1)
+    raise RuntimeError(f"invalid Mishka activity response: {last_error}")
+
+
+def invoke(serial: str, package: str, request: dict[str, Any]) -> dict[str, Any]:
+    # Android blocks a background ContentProvider from starting a foreground service.
+    # Keep ordinary RPCs provider-based, but run service-starting commands in the transparent Activity.
+    if request.get("command") in {"proxy.start", "proxy.restart", "proxy.toggle"}:
+        return invoke_activity(serial, package, request)
+
+    payload = base64.b64encode(json.dumps(request, separators=(",", ":")).encode()).decode()
+    uri = f"content://{package}.cli"
+    result = adb(serial, "shell", "content", "call", "--uri", uri, "--method", "rpc", "--arg", payload)
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip() or "content call failed")
+    match = re.search(r"result=([A-Za-z0-9+/=_-]+)", result.stdout)
+    if not match:
+        raise RuntimeError(f"unexpected content provider output: {result.stdout.strip()}")
+    try:
+        decoded = base64.b64decode(match.group(1)).decode()
+        return json.loads(decoded)
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError(f"invalid Mishka response: {result.stdout.strip()}") from error
+
+
+def transfer_backup(serial: str, package: str, output: str | None, input_path: str | None) -> None:
+    uri = f"content://{package}.cli/backup"
+    if input_path:
+        with open(input_path, "rb") as source:
+            result = adb_binary(serial, "shell", "content", "write", "--uri", uri, stdin=source)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.decode(errors="replace").strip() or "backup upload failed")
+    if output:
+        with open(output, "wb") as target:
+            result = adb_binary(serial, "exec-out", "content", "read", "--uri", uri)
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr.decode(errors="replace").strip() or "backup download failed")
+            target.write(result.stdout)
+
+
+def watch(serial: str, package: str, target: str, args: dict[str, Any], pretty: bool) -> int:
+    command = {
+        "status": "status",
+        "traffic": "runtime.traffic",
+        "memory": "runtime.memory",
+        "connections": "runtime.connections",
+        "log": "runtime.log",
+    }.get(target)
+    if command is None:
+        raise ValueError("watch supports status, traffic, memory, connections, and log")
+    interval = float(args.pop("interval", 1.0))
+    try:
+        while True:
+            response = invoke(serial, package, {"command": command, "args": args})
+            print(json.dumps(response, ensure_ascii=False, indent=2 if pretty else None, separators=None if pretty else (",", ":")), flush=True)
+            if not response.get("ok"):
+                return 1
+            time.sleep(max(0.1, interval))
+    except KeyboardInterrupt:
+        return 0
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Mishka ADB CLI")
+    parser.add_argument("--serial", "-s", help="adb serial; required when more than one device is connected")
+    parser.add_argument("--package", default="top.yukonga.mishka", help="Mishka application id")
+    parser.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    parser.add_argument("--raw", action="store_true", help="print only response data")
+    parser.add_argument("tokens", nargs=argparse.REMAINDER)
+    options = parser.parse_args()
+
+    try:
+        # Accept output flags both before and after the command for shell ergonomics.
+        tokens = list(options.tokens)
+        if "--pretty" in tokens:
+            options.pretty = True
+            tokens.remove("--pretty")
+        if "--raw" in tokens:
+            options.raw = True
+            tokens.remove("--raw")
+        serial = choose_serial(options.serial)
+        command, args = parse_tokens(tokens)
+        if command.startswith("watch."):
+            return watch(serial, options.package, command.split(".", 1)[1], args, options.pretty)
+
+        output_path = args.pop("output", None)
+        input_path = args.pop("input", None)
+        if command == "backup.import" and not input_path:
+            raise ValueError("backup import requires --input FILE")
+        if input_path:
+            transfer_backup(serial, options.package, None, input_path)
+        response = invoke(serial, options.package, {"command": command, "args": args})
+        if command == "backup.export" and response.get("ok") and output_path:
+            transfer_backup(serial, options.package, output_path, None)
+            invoke(serial, options.package, {"command": "backup.clear", "args": {}})
+            response.setdefault("data", {})["path"] = output_path
+        elif command == "backup.import" and response.get("ok"):
+            invoke(serial, options.package, {"command": "backup.clear", "args": {}})
+    except (OSError, RuntimeError, ValueError) as error:
+        print(f"mishka-cli: {error}", file=sys.stderr)
+        return 2
+
+    output = response.get("data") if options.raw and response.get("ok") else response
+    print(json.dumps(output, ensure_ascii=False, indent=2 if options.pretty else None, separators=None if options.pretty else (",", ":")))
+    return 0 if response.get("ok") else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

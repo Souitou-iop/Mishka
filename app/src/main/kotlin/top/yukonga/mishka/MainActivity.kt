@@ -37,15 +37,19 @@ import top.yukonga.mishka.platform.AndroidWifiPolicy
 import top.yukonga.mishka.platform.BootStartManager
 import top.yukonga.mishka.platform.FilePicker
 import top.yukonga.mishka.platform.PlatformStorage
+import top.yukonga.mishka.platform.ProxyServiceBridge
 import top.yukonga.mishka.platform.ProxyServiceController
+import top.yukonga.mishka.platform.ProxyState
 import top.yukonga.mishka.platform.StorageKeys
 import top.yukonga.mishka.platform.WifiPolicyController
 import top.yukonga.mishka.service.RootHelper
+import top.yukonga.mishka.ui.navigation.Route
 import top.yukonga.mishka.ui.theme.ThemeConfig
 import top.yukonga.mishka.ui.theme.readThemeConfig
 import top.yukonga.mishka.ui.theme.resolveIsDark
 import top.yukonga.mishka.viewmodel.AppProxyViewModel
 import top.yukonga.mishka.viewmodel.ConnectionViewModel
+import top.yukonga.mishka.viewmodel.DiagnosticsViewModel
 import top.yukonga.mishka.viewmodel.DnsQueryViewModel
 import top.yukonga.mishka.viewmodel.ExternalControlViewModel
 import top.yukonga.mishka.viewmodel.HomeViewModel
@@ -56,8 +60,18 @@ import top.yukonga.mishka.viewmodel.ProviderViewModel
 import top.yukonga.mishka.viewmodel.ProxyViewModel
 import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
+import top.yukonga.mishka.widget.MishkaWidgetProvider
 
 private const val STATE_DEEPLINK_NONCE = "deeplink_nonce"
+
+private const val MAIN_PAGE_PROXY = 1
+private const val MAIN_PAGE_SETTINGS = 3
+
+/**
+ * 一次快捷方式导航请求：切到某个主 Tab（[page]）或压一个二级页（[route]）。
+ * 两者互斥——所有 Pager Tab 都建在 Route.Main 之上，所以先回 Main 再切 Tab。
+ */
+data class ShortcutNavigation(val page: Int? = null, val route: Route? = null)
 
 class MainActivity : ComponentActivity() {
 
@@ -74,6 +88,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var metaSettingsViewModel: MetaSettingsViewModel
     private lateinit var externalControlViewModel: ExternalControlViewModel
     private lateinit var appProxyViewModel: AppProxyViewModel
+    private lateinit var diagnosticsViewModel: DiagnosticsViewModel
     private lateinit var filePicker: FilePicker
     private lateinit var scanQrLauncher: ActivityResultLauncher<ScannerConfig>
     private lateinit var vpnPermissionLauncher: ActivityResultLauncher<Intent>
@@ -82,10 +97,13 @@ class MainActivity : ComponentActivity() {
     private var wifiPermissionCallback: ((Boolean) -> Unit)? = null
     private var latestThemeConfig: ThemeConfig? = null
     private var contentReady = false
+    private var widgetTrafficJob: kotlinx.coroutines.Job? = null
 
     // 深链导入请求：AppNavigation 消费后回调置空
     private val pendingDeepLinkImport = mutableStateOf<DeepLinkImportRequest?>(null)
     private var consumedDeepLinkNonce: String? = null
+    // 快捷方式导航请求：AppNavigation 消费后回调置空（同一次 action 已处理就不再重放）
+    private val pendingShortcut = mutableStateOf<ShortcutNavigation?>(null)
     private val scannerConfig: ScannerConfig by lazy {
         ScannerConfig.build {
             setBarcodeFormats(listOf(BarcodeFormat.FORMAT_QR_CODE))
@@ -196,10 +214,13 @@ class MainActivity : ComponentActivity() {
         metaSettingsViewModel = get()
         externalControlViewModel = get()
         appProxyViewModel = get()
+        diagnosticsViewModel = get()
         subscriptionViewModel = get()
         overrideProfileViewModel = get()
         proxyViewModel = get()
         homeViewModel = get()
+        // shortcut 的启停动作依赖已注入的 HomeViewModel；导航请求也在 composition 首帧前排队。
+        consumeShortcutIntent(intent)
 
         // 监听共享 connectionManager 的 repository：mihomo 重启时单点 close 旧 + new 新
         // 这里只负责把当前 repo 分发给消费方 ViewModel，不持有 close 责任（manager 拥有）
@@ -211,6 +232,27 @@ class MainActivity : ComponentActivity() {
                 providerViewModel.setRepository(repo)
                 connectionViewModel.setRepository(repo)
                 dnsQueryViewModel.setRepository(repo)
+                widgetTrafficJob?.cancel()
+                widgetTrafficJob = repo?.let { active ->
+                    lifecycleScope.launch {
+                        active.trafficFlow().collect { traffic ->
+                            MishkaWidgetProvider.updateFromTraffic(this@MainActivity, traffic, null)
+                        }
+                    }
+                }
+            }
+        }
+
+        // 主屏 widget 的运行时刷新：本进程持有 bridge 状态与共享 repository，是唯一能在代理运行
+        // 期间把状态/速率推给 widget 的地方。widget 进程不在前台时不会被拉起，故只在前台活着时刷新
+        // （onUpdate/点击另有自己的刷新路径）。
+        lifecycleScope.launch {
+            ProxyServiceBridge.state.collect { status ->
+                if (status.state == ProxyState.Running) {
+                    MishkaWidgetProvider.refresh(this@MainActivity)
+                } else {
+                    MishkaWidgetProvider.updateState(this@MainActivity)
+                }
             }
         }
 
@@ -255,6 +297,7 @@ class MainActivity : ComponentActivity() {
                 metaSettingsViewModel = metaSettingsViewModel,
                 externalControlViewModel = externalControlViewModel,
                 appProxyViewModel = appProxyViewModel,
+                diagnosticsViewModel = diagnosticsViewModel,
                 filePicker = filePicker,
                 storage = storage,
                 mihomoRepository = connectionManager.repository,
@@ -279,6 +322,8 @@ class MainActivity : ComponentActivity() {
                 },
                 deepLinkImport = pendingDeepLinkImport.value,
                 onDeepLinkImportConsumed = { pendingDeepLinkImport.value = null },
+                shortcutNavigation = pendingShortcut.value,
+                onShortcutConsumed = { pendingShortcut.value = null },
                 backupViewModel = get(),
                 onRestartApp = { restartApplication() },
             )
@@ -300,6 +345,7 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         acceptDeepLinkImport(intent)
+        consumeShortcutIntent(intent)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -321,6 +367,43 @@ class MainActivity : ComponentActivity() {
             name = intent.getStringExtra(ExternalImportActivity.EXTRA_IMPORT_NAME).orEmpty(),
             intervalMinutes = intent.getLongExtra(ExternalImportActivity.EXTRA_IMPORT_INTERVAL_MINUTES, 0L),
         )
+    }
+
+    /**
+     * App Shortcuts 入口。MainActivity 是 exported 的 LAUNCHER 入口，显式 Intent 谁都能发，
+     * 所以 action 先过 [AppShortcuts.isShortcutAction] 白名单再落到既有导航/启停路径；启停一律
+     * 经 ProxyServiceController（含 active 订阅校验），VPN 授权走已有的 Activity Result launcher，
+     * 不复刻一份启动逻辑。
+     */
+    private fun consumeShortcutIntent(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (!AppShortcuts.isShortcutAction(action)) return
+        when (action) {
+            AppShortcuts.ACTION_START_PROXY -> startProxyFromShortcut()
+            AppShortcuts.ACTION_STOP_PROXY -> homeViewModel.stopProxy()
+            AppShortcuts.ACTION_TOGGLE_PROXY -> when (ProxyServiceBridge.state.value.state) {
+                ProxyState.Running -> homeViewModel.stopProxy()
+                ProxyState.Starting, ProxyState.Stopping -> Unit
+                ProxyState.Stopped, ProxyState.Error -> startProxyFromShortcut()
+            }
+            AppShortcuts.ACTION_OPEN_PROXY -> pendingShortcut.value = ShortcutNavigation(page = MAIN_PAGE_PROXY)
+            AppShortcuts.ACTION_OPEN_SETTINGS -> pendingShortcut.value = ShortcutNavigation(page = MAIN_PAGE_SETTINGS)
+            AppShortcuts.ACTION_OPEN_DNS -> pendingShortcut.value = ShortcutNavigation(route = Route.DnsQuery)
+            AppShortcuts.ACTION_OPEN_SUBSCRIPTION -> {
+                val id = intent.getStringExtra(AppShortcuts.EXTRA_SUBSCRIPTION_ID)
+                if (!id.isNullOrBlank()) {
+                    pendingShortcut.value = ShortcutNavigation(route = Route.SubscriptionEdit(id))
+                }
+            }
+        }
+    }
+
+    /**
+     * 快捷方式启停走 HomeViewModel.startProxy，与首页按钮同一条路径：它内部经
+     * ProxyServiceController 做 active 订阅校验，VPN 未授权时复用本 Activity 的 Result launcher。
+     */
+    private fun startProxyFromShortcut() {
+        homeViewModel.startProxy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

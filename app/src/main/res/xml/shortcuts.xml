@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="start_proxy"
+        android:shortcutShortLabel="@string/shortcut_start_proxy"
+        android:shortcutLongLabel="@string/shortcut_start_proxy">
+        <intent
+            android:action="top.yukonga.mishka.action.SHORTCUT_START_PROXY"
+            android:targetPackage="top.yukonga.mishka"
+            android:targetClass="top.yukonga.mishka.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="stop_proxy"
+        android:shortcutShortLabel="@string/shortcut_stop_proxy"
+        android:shortcutLongLabel="@string/shortcut_stop_proxy">
+        <intent
+            android:action="top.yukonga.mishka.action.SHORTCUT_STOP_PROXY"
+            android:targetPackage="top.yukonga.mishka"
+            android:targetClass="top.yukonga.mishka.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="toggle_proxy"
+        android:shortcutShortLabel="@string/shortcut_toggle_proxy"
+        android:shortcutLongLabel="@string/shortcut_toggle_proxy">
+        <intent
+            android:action="top.yukonga.mishka.action.SHORTCUT_TOGGLE_PROXY"
+            android:targetPackage="top.yukonga.mishka"
+            android:targetClass="top.yukonga.mishka.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_proxy"
+        android:shortcutShortLabel="@string/shortcut_open_proxy"
+        android:shortcutLongLabel="@string/shortcut_open_proxy">
+        <intent
+            android:action="top.yukonga.mishka.action.SHORTCUT_OPEN_PROXY"
+            android:targetPackage="top.yukonga.mishka"
+            android:targetClass="top.yukonga.mishka.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_dns"
+        android:shortcutShortLabel="@string/shortcut_open_dns"
+        android:shortcutLongLabel="@string/shortcut_open_dns">
+        <intent
+            android:action="top.yukonga.mishka.action.SHORTCUT_OPEN_DNS"
+            android:targetPackage="top.yukonga.mishka"
+            android:targetClass="top.yukonga.mishka.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="open_settings"
+        android:shortcutShortLabel="@string/shortcut_open_settings"
+        android:shortcutLongLabel="@string/shortcut_open_settings">
+        <intent
+            android:action="top.yukonga.mishka.action.SHORTCUT_OPEN_SETTINGS"
+            android:targetPackage="top.yukonga.mishka"
+            android:targetClass="top.yukonga.mishka.MainActivity" />
+    </shortcut>
+</shortcuts>

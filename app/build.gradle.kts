@@ -31,6 +31,7 @@ dependencies {
     implementation(libs.quickie.bundled)
     implementation(libs.scripta.editor)
     ksp(libs.androidx.room3.compiler)
+    testImplementation(libs.junit)
 }
 
 room3 {

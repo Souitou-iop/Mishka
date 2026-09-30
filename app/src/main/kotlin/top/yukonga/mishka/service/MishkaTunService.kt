@@ -53,11 +53,17 @@ class MishkaTunService : VpnService() {
     private var monitorJob: Job? = null
     private var notificationRefreshJob: Job? = null
 
+    // 仅观测默认网络切换（诊断/保护信号），不在切换时动 mihomo 与规则——
+    // 见 [NetworkHandoverMonitor] 的取舍说明。随 Running 态存续。
+    private var handoverJob: Job? = null
+    private var handoverObserving = false
+
     // 与 ROOT 侧同源：ACTION_START 会被「打开应用自动连接」与补发 BOOT_COMPLETED 的
     // BootReceiver 各触发一次，并发启动会重复建 TUN fd 并 fork 两个 mihomo。
     // 跨线程访问（onStartCommand 在主线程，stop/restart/revoke 在 IO 协程）故 @Volatile。
     @Volatile
     private var startJob: Job? = null
+    private val startState = ServiceStartStateMachine()
 
     override fun onCreate() {
         super.onCreate()
@@ -91,6 +97,18 @@ class MishkaTunService : VpnService() {
                 }
             }
         }
+        handoverJob = scope.launch {
+            ProxyServiceBridge.state.collect { status ->
+                setHandoverObserving(status.state == ProxyState.Running && status.tunMode == TunMode.Vpn)
+            }
+        }
+    }
+
+    /** 幂等：同一 Service 实例内 Running 态反复发射不应重复注册观测器。 */
+    private fun setHandoverObserving(active: Boolean) {
+        if (active == handoverObserving) return
+        handoverObserving = active
+        if (active) NetworkHandoverMonitor.start(this) else NetworkHandoverMonitor.stop()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -111,12 +129,14 @@ class MishkaTunService : VpnService() {
 
     /** 启动代理。**幂等**：已有启动协程在跑时忽略本次请求（见 [startJob]）。 */
     private fun startProxy(subscriptionId: String? = null) {
-        if (startJob?.isActive == true) {
+        val request = startState.request(attachOnly = false)
+        if (request == null) {
             Log.i(TAG, "Start already in progress, ignoring duplicate START")
             return
         }
         startJob = scope.launch {
-            Log.i(TAG, "Starting proxy, subscription: $subscriptionId")
+            try {
+                Log.i(TAG, "Starting proxy, subscription: $subscriptionId")
             // 防御外部直拉 Service：无 config 时 mihomo TUN init silent failure，必须 fast-fail
             if (!ProfileFileOps.hasValidConfig(this@MishkaTunService, subscriptionId)) {
                 Log.e(TAG, "No valid subscription config (id=$subscriptionId), aborting start")
@@ -380,7 +400,10 @@ class MishkaTunService : VpnService() {
             } else {
                 ConfigGenerator.getWorkDir(this@MishkaTunService)
             }
-            startProcessMonitor(monitorWorkDir)
+                startProcessMonitor(monitorWorkDir)
+            } finally {
+                startState.complete(request.token)
+            }
         }
     }
 
@@ -401,6 +424,7 @@ class MishkaTunService : VpnService() {
                 getString(R.string.error_mihomo_exited)
             }
             Log.e(TAG, "mihomo process died unexpectedly: $errorMsg")
+            dynamicNotification.stop()
             ProxyServiceBridge.updateState(ProxyServiceStatus(ProxyState.Error, errorMessage = errorMsg))
             closeTunFd()
             PlatformStorage(this@MishkaTunService).putString(StorageKeys.SERVICE_WAS_RUNNING, "false")
@@ -461,6 +485,8 @@ class MishkaTunService : VpnService() {
 
     override fun onDestroy() {
         notificationRefreshJob?.cancel()
+        handoverJob?.cancel()
+        setHandoverObserving(false)
         monitorJob?.cancel()
         dynamicNotification.stop()
         runner.stop()

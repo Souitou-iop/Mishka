@@ -3,6 +3,7 @@ package top.yukonga.mishka.platform
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import java.io.File
 
 object StorageKeys {
     // 服务状态
@@ -90,6 +91,9 @@ object StorageKeys {
 
     // Tailscale 出站
     const val TAILSCALE_ENABLED = "tailscale_enabled"
+
+    // 敏感值：经 SecretStore（Android Keystore 加密）落地，不进 WebDAV/本地备份。
+    // 读取一律走 PlatformStorage.getSecret，不要直接 getString（旧明文值只在迁移里读一次）
     const val TAILSCALE_AUTH_KEY = "tailscale_auth_key"
     const val TAILSCALE_CONTROL_URL = "tailscale_control_url"
     const val TAILSCALE_HOSTNAME = "tailscale_hostname"
@@ -126,17 +130,65 @@ object StorageKeys {
     const val WEBDAV_URL = "webdav_url"
     const val WEBDAV_USERNAME = "webdav_username"
     const val WEBDAV_PASSWORD = "webdav_password"
+    // Highest immutable snapshot version published by this installation.
+    const val WEBDAV_SYNC_VERSION = "webdav_sync_version"
 }
 
 class PlatformStorage(context: Context) {
+    private val appContext = context.applicationContext
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("mishka_prefs", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("mishka_prefs", Context.MODE_PRIVATE)
+
+    // 敏感值单独一路：Keystore 加密后落 mishka_secrets，与明文 prefs 完全隔离
+    // （因此也不需要进 WebDAV 的明文 dumpAll，见 BackupManager.EXCLUDED_PREF_KEYS）
+    private val secrets = SecretStore(appContext)
 
     fun getString(key: String, default: String): String =
         prefs.getString(key, default) ?: default
 
     fun putString(key: String, value: String) {
         prefs.edit { putString(key, value) }
+    }
+
+    /** 敏感值读取；Keystore 不可用时按未配置处理，不读取旧明文 prefs。 */
+    fun getSecret(key: String, default: String = ""): String {
+        if (!secrets.available) return default
+        val stored = secrets.get(key)
+        if (stored.isNotEmpty()) return stored
+        migratePlaintextSecret(key)
+        return secrets.get(key).ifEmpty { default }
+    }
+
+    /** 敏感值写入；空串表示清除。同时清掉同名的旧明文值（幂等迁移）。 */
+    fun putSecret(key: String, value: String) {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) {
+            secrets.remove(key)
+            prefs.edit { remove(key) }
+            if (key == StorageKeys.TAILSCALE_AUTH_KEY) {
+                File(appContext.filesDir, TAILSCALE_GENERATED_PATH).delete()
+            }
+            return
+        }
+        if (!secrets.available) throw SecretStorageUnavailableException()
+        secrets.put(key, trimmed)
+        prefs.edit { remove(key) }
+    }
+
+    fun hasSecret(key: String): Boolean = getSecret(key).isNotBlank()
+
+    /**
+     * 一次性迁移：旧版本把 Tailscale auth key 明文存在 mishka_prefs。
+     * 迁到 Keystore 后清掉明文；Keystore 不可用时保留旧值但不再读取，等待下次可迁移。
+     */
+    fun migratePlaintextSecret(key: String) {
+        val legacy = prefs.getString(key, null) ?: return
+        if (!secrets.available) return
+        if (legacy.isNotBlank()) secrets.put(key, legacy.trim())
+        prefs.edit { remove(key) }
+        if (key == StorageKeys.TAILSCALE_AUTH_KEY && legacy.isBlank()) {
+            File(appContext.filesDir, TAILSCALE_GENERATED_PATH).delete()
+        }
     }
 
     fun getStringSet(key: String, default: Set<String>): Set<String> =
@@ -148,4 +200,8 @@ class PlatformStorage(context: Context) {
 
     /** 全量导出（WebDAV 备份用）；Mishka 只写 String / Set<String> 两种类型。 */
     fun dumpAll(): Map<String, Any?> = prefs.all
+
+    private companion object {
+        const val TAILSCALE_GENERATED_PATH = "mihomo/tailscale.generated.js"
+    }
 }
