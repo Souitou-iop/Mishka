@@ -2,6 +2,14 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.3 — 2026-10-01
+
+- `backup: exclude Tailscale node identity from backup and restore` (`c16e42c`)
+  - mihomo Tailscale 出站的 state-dir 默认解析到工作目录 `tailscale/`（tsnet 节点密钥），此前随 `imported/` 目录树进备份：恢复到其他设备等于多台机器共用同一节点身份，Tailscale 控制台报「Duplicate node key」，且全部显示为源设备名。
+  - 导出与恢复双向按目录段过滤 `tailscale/`；恢复是整树替换，本机旧身份随之清除，恢复后需重新认证一次。
+- `build: publish the changelog section as release notes` (`905ea7f`)
+  - release 页面正文改为提取 CHANGELOG.md 对应版本段落，段落缺失时退回 generate-notes。
+
 ## 1.1.2 — 2026-10-01
 
 - `backup: keep per-device Tailscale hostname out of backups` (`597856b`)

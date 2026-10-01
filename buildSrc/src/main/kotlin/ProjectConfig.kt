@@ -3,7 +3,7 @@ import org.gradle.api.Project
 object ProjectConfig {
     const val APP_NAME = "Mishka"
     const val PACKAGE_NAME = "top.yukonga.mishka"
-    const val VERSION_NAME = "1.1.2"
+    const val VERSION_NAME = "1.1.3"
 
     object Android {
         const val TARGET_SDK = 37
