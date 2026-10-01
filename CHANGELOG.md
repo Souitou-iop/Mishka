@@ -2,6 +2,12 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.2 — 2026-10-01
+
+- `backup: keep per-device Tailscale hostname out of backups` (`597856b`)
+  - Tailscale 主机名是每台设备自己的身份，加入备份黑名单：导出不携带，恢复不覆盖目标设备已设的名字。
+  - 恢复后主机名留空时，Tailscale 侧回落到 Android 设备名。
+
 ## 1.1.1 — 2026-10-01
 
 - `backup: include Tailscale auth key in backup and restore` (`5b0ef0f`)
@@ -50,6 +56,15 @@
   - 统一启动校验、VPN 授权、启动幂等、错误状态与 ROOT attach/restart 路径。
 - `ui: add shortcuts, widget and diagnostics entry points`
   - 增加快捷方式、桌面小组件、诊断入口与相关本地化。
+- `build: sign CI artifacts with the pinned debug keystore` (`5d02a25`)
+  - build.yml 从 secrets 解码 keystore 注入 buildTypes 签名机制，debug/release 产物签名统一，CI 产物可直接覆盖安装到现役设备。
+- `docs: add app icon PNG as README header` (`6f34e6a`)
+  - README 头部展示应用图标 PNG（按 adaptive icon 矢量坐标重绘导出）。
+- `build: add tag-triggered signed release workflow` (`8f93769`)
+  - 推送 `v*` tag 触发 release.yml：解码 keystore 签名、apksigner 验签后自动发布 GitHub Release。
+- `ui: bump miuix to 0.9.4` (`90beb68`)
+- `build: bump some deps` (`94573b0`)
+- `chore: bump mihomo to v1.19.31+` (`4e619c0`)
 
 ### 验证边界
 
