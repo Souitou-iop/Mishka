@@ -19,6 +19,13 @@ jobs:
   build-apk:
     name: Build APK
     runs-on: ubuntu-latest
+    env:
+      # 与 release.yml 同一把签名（debug keystore），保证 CI 产物可以互相覆盖安装；
+      # 不注入时 runner 每次生成随机 debug 签名，产物永远装不到旧包头上
+      KEYSTORE_PATH: ${{ github.workspace }}/signing/keystore.jks
+      KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -45,6 +52,13 @@ jobs:
 
       - name: Download GeoIP files
         run: ./gradlew :app:downloadGeoFiles
+
+      - name: Decode keystore
+        run: |
+          mkdir -p signing
+          echo "$KEYSTORE_BASE64" | base64 -d > signing/keystore.jks
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
