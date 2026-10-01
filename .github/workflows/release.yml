@@ -70,4 +70,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
-          gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --generate-notes
+          # 正文取 CHANGELOG.md 里 `## <version>` 段落。index 前缀匹配而非正则：
+          # 避免 1.1.2 误命中 1.1.20 这类段落头。段落缺失时退回 generate-notes
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            { hdr = "## " ver }
+            index($0, hdr) == 1 && (substr($0, length(hdr) + 1, 1) == " " || length($0) == length(hdr)) { hit = 1; next }
+            /^## / && hit { exit }
+            hit { print }
+          ' CHANGELOG.md | sed '/./,$!d' > release_notes.md
+          if [ -s release_notes.md ]; then
+            gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --notes-file release_notes.md
+          else
+            gh release create "$GITHUB_REF_NAME" "$APK" --title "$GITHUB_REF_NAME" --generate-notes
+          fi
