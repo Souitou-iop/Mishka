@@ -2,6 +2,13 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.1 — 2026-10-01
+
+- `backup: include Tailscale auth key in backup and restore` (`5b0ef0f`)
+  - 备份快照新增 `tailscaleAuthKey` 专用字段，auth key 明文随备份携带（Keystore 密钥硬件绑定，密文跨设备不可解，敏感级同三表中的 ageSecretKey）。
+  - 恢复经 `putSecret` 回写 SecretStore，无需手动重新粘贴；目标机 Keystore 不可用时跳过本项并记日志。
+  - 旧版本恢复新备份会忽略该字段，新版本恢复旧备份按未设置处理，`BACKUP_VERSION` 保持不变。
+
 ## 1.1.0 — 2026-10-01
 
 - `settings: Add Tailscale Tailnet outbound and device status` (`311e687`)
