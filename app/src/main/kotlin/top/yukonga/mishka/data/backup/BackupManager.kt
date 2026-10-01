@@ -399,10 +399,12 @@ class BackupManager(
         private val RESTORE_TARGETS = listOf("imported", "pending", OVERRIDES_DIR, OVERRIDE_FILE)
 
         /**
-         * 不进备份也不从备份恢复的 key，两类语义：
+         * 不进备份也不从备份恢复的 key，三类语义：
          * ① 本机/本次运行的设备态（root 探测、进程 PID、boot session、Wi-Fi 策略运行时
          *    中间态、一次性迁移标记）——跨设备恢复会把别人的 PID / boot count 带进来；
-         * ② WebDAV 凭据自身（凭据是「连到这份备份」的前提，写进备份既无意义又多一份泄露面）。
+         * ② WebDAV 凭据自身（凭据是「连到这份备份」的前提，写进备份既无意义又多一份泄露面）；
+         * ③ 每设备自定义态（Tailscale 主机名）——设备名就该各设备自己定，随备份恢复会
+         *    覆盖目标设备的自定名；留空时 Tailscale 侧回落到 Android 设备名。
          *
          * **新增任何运行时态 key 都要补进本名单**，否则它会随备份跨设备漂移。
          */
@@ -429,6 +431,7 @@ class BackupManager(
             // 敏感凭据经 SecretStore 落地、不进 prefs dump，随备份走 BackupSnapshot.tailscaleAuthKey
             // 专用字段；此条只兜住旧版明文残留不被 dumpAll 卷进 stringPrefs
             StorageKeys.TAILSCALE_AUTH_KEY,
+            StorageKeys.TAILSCALE_HOSTNAME,
         )
     }
 }
