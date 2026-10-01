@@ -2,6 +2,7 @@ package top.yukonga.mishka.data.backup
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.room3.withWriteTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -64,12 +65,15 @@ data class BackupSnapshot(
     val stringPrefs: Map<String, String> = emptyMap(),
     val stringSetPrefs: Map<String, List<String>> = emptyMap(),
     val bootStartEnabled: Boolean = false,
+    // 明文随备份（敏感级同三表里的 ageSecretKey）：Keystore 密钥硬件绑定，密文跨设备不可解，
+    // 搬密文等于没搬；恢复走 putSecret 回写 SecretStore
+    val tailscaleAuthKey: String = "",
 )
 
 /**
  * WebDAV 备份/恢复的打包与落地。
  *
- * zip 布局：`backup.json`（版本 + 三表 JSON + prefs）+ files/imported、files/pending
+ * zip 布局：`backup.json`（版本 + 三表 JSON + prefs + Tailscale auth key）+ files/imported、files/pending
  * 两棵目录树 + `files/override.user.json`。DB 走 JSON 导出重放而非拷贝
  * db 文件——绕开 WAL 一致性问题，且跨 schema 版本可由字段默认值兜底。
  *
@@ -135,6 +139,7 @@ class BackupManager(
                     }
                     .toMap(),
                 bootStartEnabled = bootStartManager.isEnabled(),
+                tailscaleAuthKey = storage.getSecret(StorageKeys.TAILSCALE_AUTH_KEY),
             )
 
             ZipOutputStream(out.buffered()).use { zip ->
@@ -196,6 +201,14 @@ class BackupManager(
             }
             snapshot.stringSetPrefs.forEach { (k, v) ->
                 if (k !in EXCLUDED_PREF_KEYS) storage.putStringSet(k, v.toSet())
+            }
+
+            // auth key 必须走 putSecret 回写 SecretStore，不能 putString 进明文 prefs。
+            // Keystore 不可用（极少数被裁 ROM）时只跳过本项并记日志：此时 prefs 已写一半、
+            // 文件已换入，抛错只会把恢复停在更糟的中间态，用户事后手动粘贴即可
+            if (snapshot.tailscaleAuthKey.isNotEmpty()) {
+                runCatching { storage.putSecret(StorageKeys.TAILSCALE_AUTH_KEY, snapshot.tailscaleAuthKey) }
+                    .onFailure { Log.w(TAG, "auth key in backup not restored: keystore unavailable", it) }
             }
 
             // active 指向已不存在的订阅时清空，避免启动校验单点报「配置缺失」死循环
@@ -370,6 +383,8 @@ class BackupManager(
     companion object {
         const val BACKUP_VERSION = 1
 
+        private const val TAG = "BackupManager"
+
         private const val ENTRY_SNAPSHOT = "backup.json"
         private const val ENTRY_FILES_PREFIX = "files"
         private const val OVERRIDE_FILE = "override.user.json"
@@ -411,7 +426,8 @@ class BackupManager(
             StorageKeys.WEBDAV_USERNAME,
             StorageKeys.WEBDAV_PASSWORD,
             StorageKeys.WEBDAV_SYNC_VERSION,
-            // 敏感凭据：Keystore 加密落地，既不该跨设备搬运，也绝不能进明文 zip（备用保险）
+            // 敏感凭据经 SecretStore 落地、不进 prefs dump，随备份走 BackupSnapshot.tailscaleAuthKey
+            // 专用字段；此条只兜住旧版明文残留不被 dumpAll 卷进 stringPrefs
             StorageKeys.TAILSCALE_AUTH_KEY,
         )
     }

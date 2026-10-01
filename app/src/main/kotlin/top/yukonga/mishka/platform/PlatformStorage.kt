@@ -92,8 +92,9 @@ object StorageKeys {
     // Tailscale 出站
     const val TAILSCALE_ENABLED = "tailscale_enabled"
 
-    // 敏感值：经 SecretStore（Android Keystore 加密）落地，不进 WebDAV/本地备份。
-    // 读取一律走 PlatformStorage.getSecret，不要直接 getString（旧明文值只在迁移里读一次）
+    // 敏感值：经 SecretStore（Android Keystore 加密）落地，与明文 prefs 完全隔离。
+    // 读取一律走 PlatformStorage.getSecret，不要直接 getString（旧明文值只在迁移里读一次）；
+    // 备份经 BackupSnapshot.tailscaleAuthKey 专用字段携带，恢复走 putSecret 回写
     const val TAILSCALE_AUTH_KEY = "tailscale_auth_key"
     const val TAILSCALE_CONTROL_URL = "tailscale_control_url"
     const val TAILSCALE_HOSTNAME = "tailscale_hostname"
