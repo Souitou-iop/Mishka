@@ -303,13 +303,18 @@ class BackupManager(
                         entry.isDirectory -> Unit
                         name == ENTRY_SNAPSHOT -> snapshotBytes = zis.readBytes()
                         name.startsWith("$ENTRY_FILES_PREFIX/") -> {
-                            val target = File(staging, name.removePrefix("$ENTRY_FILES_PREFIX/"))
+                            val relative = name.removePrefix("$ENTRY_FILES_PREFIX/")
+                            val target = File(staging, relative)
                             // zip-slip 防御：规范化后必须仍在 staging 内
                             if (!target.canonicalPath.startsWith(stagingRoot)) {
                                 throw BackupException("Illegal entry path: $name")
                             }
-                            target.parentFile?.mkdirs()
-                            target.outputStream().use { zis.copyTo(it) }
+                            // 旧归档（过滤上线前产出）可能携带源设备的 Tailscale 节点身份，
+                            // 落盘 = 恢复成别人的 node key，恢复侧一律丢弃
+                            if (!isTailscaleStateEntry(relative)) {
+                                target.parentFile?.mkdirs()
+                                target.outputStream().use { zis.copyTo(it) }
+                            }
                         }
                     }
                     entry = zis.nextEntry
@@ -376,6 +381,7 @@ class BackupManager(
                 if (java.nio.file.Files.isSymbolicLink(file.toPath())) return@forEach
                 if (file.name in ProfileFileOps.GEODATA_FILES) return@forEach
                 val relative = file.relativeTo(dir).invariantSeparatorsPath
+                if (isTailscaleStateEntry(relative)) return@forEach
                 zip.putFile("$entryPrefix/$relative", file)
             }
     }
@@ -393,6 +399,18 @@ class BackupManager(
         // 与正式目录同分区，rename 才原子
         private const val RESTORE_STAGING = ".restore"
         private const val RESTORE_OLD = ".restore-old"
+
+        // mihomo Tailscale 出站的 state-dir 默认解析到工作目录 tailscale/（tsnet 节点密钥所在）
+        private const val TAILSCALE_STATE_DIR = "tailscale"
+
+        /**
+         * Tailscale 节点身份不进备份、也不从备份恢复：node key 是设备在 tailnet 的唯一身份，
+         * 恢复进别的设备 = 多台机器共用一个节点（控制台报 Duplicate node key）。按目录段过滤，
+         * 与具体 state 文件名解耦。恢复是整树替换，归档里没有 tailscale/ 即清掉本机旧身份，
+         * 恢复后需重新认证一次——节点身份本来只该属于一台设备。
+         */
+        internal fun isTailscaleStateEntry(relativePath: String): Boolean =
+            relativePath.split('/').contains(TAILSCALE_STATE_DIR)
 
         // WebDAV 收发的中转文件，固定名覆盖式（备份本身就是固定名覆盖式）
         private const val TRANSFER_FILE = "mishka-backup-transfer.zip"
