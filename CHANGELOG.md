@@ -2,6 +2,23 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.4 — 2026-10-02
+
+- 更新 mihomo 至 `1870e569`，修复 Tailscale 持久化状态恢复后停留在 `NoState`、忽略已配置 auth key 的问题。
+  - 原问题会使节点长期离线或停留在 `Starting`，经过 Tailscale 出站的 Tailnet 访问持续超时。
+  - 内核启动后仅在 backend 明确为 `NoState` 且已配置 auth key 时重新触发登录；保留原状态文件、machine key 与节点注册，避免通过删除状态目录恢复而产生重复设备。
+
+### 验证
+
+- PHK110 Android 真机使用独立测试包内的原生内核、恢复后的订阅与应用生成的 Tailscale transform 完成登录和出站验证。
+- 将测试 profile 的 `WantRunning` 设为 false，并仅对该次测试进程禁用 netmap 缓存读取，实际触发 `NoState` 后约 4.24 秒恢复为 `Running`。
+- 自愈前后 machine key、已注册 NodeID 与 Tailnet IP 保持不变；健康状态正常重启不误触发重新登录。
+- 自愈前后各三次真实请求均经 Tailscale 出站收到服务端 HTTP 301 响应，未自动跟随重定向。
+
+### 验证边界
+
+- 本次验证在应用私有独立沙箱中关闭 TUN 进行，未覆盖 Android VPN 接管、界面完整操作或远端 WebDAV 备份恢复。
+
 ## 1.1.3 — 2026-10-01
 
 - `backup: exclude Tailscale node identity from backup and restore` (`c16e42c`)
