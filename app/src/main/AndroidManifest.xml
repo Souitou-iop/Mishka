@@ -181,13 +181,23 @@
         <receiver
             android:name=".widget.MishkaWidgetProvider"
             android:exported="false"
-            android:label="@string/app_name">
+            android:label="@string/widget_combined_title">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_mishka_info" />
+        </receiver>
+
+        <receiver android:name=".widget.MishkaStatsWidgetProvider" android:exported="false" android:label="@string/widget_statistics_title">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_mishka_stats_info" />
+        </receiver>
+
+        <receiver android:name=".widget.MishkaControlWidgetProvider" android:exported="false" android:label="@string/widget_control_title">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_mishka_control_info" />
         </receiver>
 
     </application>

@@ -1,5 +1,6 @@
 package top.yukonga.mishka.platform
 
+import top.yukonga.mishka.data.repository.OverrideJsonStore
 import android.content.Context
 import android.content.Intent
 import android.net.VpnService
@@ -78,6 +79,13 @@ class ProxyServiceController(private val context: Context) {
         val mode = activeModeOrStored()
         val intent = buildServiceIntent(mode, Op.Stop)
         context.startService(intent)
+    }
+
+    fun switchProxyMode(mode: String, overrideStore: OverrideJsonStore, subscriptionId: String? = null): Boolean {
+        if (mode !in listOf("rule", "global", "direct")) return false
+        overrideStore.update { it.copy(mode = mode) }
+        restartWhenReady(subscriptionId)
+        return true
     }
 
     /**

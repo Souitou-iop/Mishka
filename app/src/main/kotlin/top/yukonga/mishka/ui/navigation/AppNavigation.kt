@@ -653,6 +653,7 @@ private fun MainPage(
                     onNavigateBackup = { navigator.push(Route.BackupRestore) },
                     onNavigateDiagnostics = { navigator.push(Route.Diagnostics) },
                     onNavigateAbout = { navigator.push(Route.About) },
+                    onResetTrafficStatistics = { homeViewModel?.resetTrafficStatistics() },
                     bootStartManager = bootStartManager,
                     storage = storage,
                     onHideTaskCardChange = onHideTaskCardChange,

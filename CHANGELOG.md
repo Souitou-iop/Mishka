@@ -2,6 +2,19 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 未发布
+
+- `widget: rebuild into stats, control and overview variants`
+  - 原单一 3×2 小组件拆为三款：2×2 流量统计（累计与实时速率）、2×2 代理控制（规则／全局／直连竖排切换、状态与开关）、4×2 代理概览（数据＋模式＋开关，按桌面分配的空间在 compact / roomy 两套布局间自适应）。
+  - 累计流量口径为「自上次手动重置以来」：停止保留、重启累加，与订阅套餐额度无关。内核计数是进程内值，新增 `TrafficStatisticsStore` 以内核累计增量差分并持久化到独立 prefs 文件——该文件不进备份，不会把计数基线随订阅搬到其他设备；重置入口在设置页，带确认弹窗。
+  - 三款小组件跟随 App 主题（自动／浅色／深色／纯黑）；模式切换统一经 `ProxyServiceController.switchProxyMode` → `restartWhenReady` 生效，开关在 VPN 未授权时经 `VpnPermissionActivity` 走授权流程。
+  - 小组件刷新由 Application 级 `MishkaWidgetObserver` 统一驱动（bridge 状态、累计流量、节点选择、主题配置），取代原 MainActivity 内的流量推送管道。
+
+### 验证
+
+- `:app:compileDebugKotlin`、83 项单元测试（累计差分、重置基线、主题判定、observer 换代）与 `:app:assembleDebug` 通过。
+- PHK110 真机以独立测试包内的原生 RemoteViews 渲染浅色／深色／自动三种主题，隔离内核实测：停止保留、重启累加、运行中清零后基线正确；模式与开关的点击事件、程序化刷新不反向触发启停均通过。
+
 ## 1.1.4 — 2026-10-02
 
 - 更新 mihomo 至 `1870e569`，修复 Tailscale 持久化状态恢复后停留在 `NoState`、忽略已配置 auth key 的问题。

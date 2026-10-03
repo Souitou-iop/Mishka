@@ -672,13 +672,8 @@
     <string name="widget_status_error">錯誤</string>
     <string name="widget_status_stopped">未執行</string>
     <string name="widget_no_node">無節點</string>
-    <string name="widget_mode_value">模式：%1$s</string>
-    <string name="widget_node_value">節點：%1$s</string>
-    <string name="widget_upload_value">↑ %1$s</string>
-    <string name="widget_download_value">↓ %1$s</string>
     <string name="widget_start">啟動</string>
     <string name="widget_stop">停止</string>
-    <string name="widget_description">Mishka 代理狀態與快捷開關</string>
     <!-- Config diagnostics -->
     <string name="settings_diagnostics">設定診斷</string>
     <string name="settings_diagnostics_summary">預覽最終生效設定、transform 鏈與 runtime override</string>
@@ -707,4 +702,23 @@
     <string name="diagnostics_root_mode">ROOT 模式</string>
     <string name="diagnostics_yes">是</string>
     <string name="diagnostics_no">否</string>
+
+    <!-- Widget variants and local cumulative traffic -->
+    <string name="widget_statistics_title">流量統計</string>
+    <string name="widget_statistics_description">自上次重設累計的上傳、下載流量與即時速率</string>
+    <string name="widget_control_title">代理控制</string>
+    <string name="widget_control_description">代理開關與規則、全域、直連模式</string>
+    <string name="widget_combined_title">代理概覽</string>
+    <string name="widget_combined_description">累計流量、目前節點、代理模式與開關</string>
+    <string name="widget_total_upload">累計上傳</string>
+    <string name="widget_total_download">累計下載</string>
+    <string name="widget_refresh">重新整理</string>
+    <string name="widget_rule">規則</string>
+    <string name="widget_global">全域</string>
+    <string name="widget_direct">直連</string>
+    <string name="widget_mode_selected">%1$s，已選取</string>
+    <string name="widget_mode_select">切換為%1$s</string>
+    <string name="settings_reset_traffic">重設流量統計</string>
+    <string name="settings_reset_traffic_summary">歸零本機累計流量，不中斷代理連線</string>
+    <string name="settings_reset_traffic_confirm">確定歸零累計上傳與下載流量嗎？此操作無法復原，不影響訂閱方案額度。</string>
 </resources>

@@ -1,9 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="widget_background">#1C1B1F</color>
-    <color name="widget_text_primary">#E6E1E5</color>
-    <color name="widget_text_secondary">#B0AAB4</color>
-    <color name="widget_toggle_background">#4A4458</color>
-    <color name="widget_toggle_text">#E8DEF8</color>
-    <color name="widget_status_error">#F2B8B5</color>
+    <color name="widget_background">#FFFCFC</color>
+    <color name="widget_text_primary">#202124</color>
+    <color name="widget_text_secondary">#666970</color>
+    <color name="widget_status_error">#B3261E</color>
+    <color name="widget_status_running">#24834B</color>
+    <color name="widget_selected_text">#246BDD</color>
+    <color name="widget_selected_background">#E5EFFF</color>
+    <color name="widget_switch_track_off">#E5E5EA</color>
+    <color name="widget_switch_track_on">#3482FF</color>
+    <color name="widget_switch_thumb">#FFFFFF</color>
+    <color name="widget_switch_thumb_stroke">#D1D1D6</color>
 </resources>

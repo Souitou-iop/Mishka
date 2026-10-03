@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -142,6 +144,7 @@ class HomeViewModel(
     private val latencyTester: RuleLatencyTester,
     private val getActiveSubscriptionId: () -> String? = { null },
     private val activeSubscription: StateFlow<Subscription?> = MutableStateFlow(null).asStateFlow(),
+    private val onResetTrafficStatistics: () -> Unit = {},
     private val onLiveProviderInfo: (subscriptionId: String?, info: SubscriptionInfo?) -> Unit = { _, _ -> },
 ) : ViewModel() {
 
@@ -197,6 +200,11 @@ class HomeViewModel(
     private var lastErrorToast: String? = null
 
     init {
+        viewModelScope.launch {
+            overrideStore.state.map { it.mode }.distinctUntilChanged().collect { mode ->
+                mode?.let { _uiState.update { it.copy(mode = mode) } }
+            }
+        }
         // 状态机仅维护 UI 状态字段（isStarting / isRunning / startTime / mihomoPid / errorMessage）
         // mihomo 客户端实例由 connectionManager 统一持有，HomeViewModel 不自建
         viewModelScope.launch {
@@ -687,11 +695,12 @@ class HomeViewModel(
      * 判定（Stopped/Error 下什么都不做，下次启动自然读到新值），别退回 `restart()`——
      * 那会把用户没打算启动的代理拉起来。
      */
+    fun resetTrafficStatistics() = onResetTrafficStatistics()
+
     fun switchMode(mode: String) {
-        val current = overrideStore.load()
-        overrideStore.save(current.copy(mode = mode))
-        _uiState.value = _uiState.value.copy(mode = mode)
-        serviceController.restartWhenReady(getActiveSubscriptionId())
+        if (serviceController.switchProxyMode(mode, overrideStore, getActiveSubscriptionId())) {
+            _uiState.value = _uiState.value.copy(mode = mode)
+        }
     }
 
     fun switchTunStack(stack: String) {

@@ -9,6 +9,7 @@ import top.yukonga.mishka.viewmodel.ConnectionViewModel
 import top.yukonga.mishka.viewmodel.DiagnosticsViewModel
 import top.yukonga.mishka.viewmodel.DnsQueryViewModel
 import top.yukonga.mishka.viewmodel.ExternalControlViewModel
+import top.yukonga.mishka.platform.TrafficStatisticsStore
 import top.yukonga.mishka.viewmodel.HomeViewModel
 import top.yukonga.mishka.viewmodel.LogViewModel
 import top.yukonga.mishka.viewmodel.MetaSettingsViewModel
@@ -31,6 +32,7 @@ val viewModelModule = module {
             latencyTester = get(),
             getActiveSubscriptionId = { get<SubscriptionRepository>().getActive()?.id },
             activeSubscription = get<SubscriptionRepository>().activeSubscription,
+            onResetTrafficStatistics = { get<TrafficStatisticsStore>().reset() },
             onLiveProviderInfo = get<SubscriptionRepository>()::setLiveProviderInfo,
         )
     }

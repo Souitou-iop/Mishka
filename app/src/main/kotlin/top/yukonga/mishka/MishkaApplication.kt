@@ -2,9 +2,11 @@ package top.yukonga.mishka
 
 import android.app.Application
 import android.content.pm.ApplicationInfo
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Process
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -17,11 +19,14 @@ import top.yukonga.mishka.di.dataModule
 import top.yukonga.mishka.di.viewModelModule
 import top.yukonga.mishka.platform.PlatformStorage
 import top.yukonga.mishka.platform.StorageKeys
+import top.yukonga.mishka.platform.TrafficStatisticsStore
+import top.yukonga.mishka.data.repository.OverrideJsonStore
 import top.yukonga.mishka.platform.initToastPlatform
 import top.yukonga.mishka.service.NotificationHelper
 import top.yukonga.mishka.service.ProfileFileOps
 import top.yukonga.mishka.service.ProfileUpdateScheduler
 import top.yukonga.mishka.service.RootHelper
+import top.yukonga.mishka.widget.MishkaWidgetObserver
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.concurrent.thread
@@ -35,7 +40,14 @@ class MishkaApplication : Application() {
 
     // 自动更新闹钟随 imported 表对账，进程一起就接上（后台服务拉起的进程同样需要）
     private val updateScheduler: ProfileUpdateScheduler by inject()
-    private val platformStorage: PlatformStorage by inject()
+    internal val platformStorage: PlatformStorage by inject()
+    private val appScope: CoroutineScope by inject()
+    internal val trafficStatistics: TrafficStatisticsStore by inject()
+    internal val overrideStore: OverrideJsonStore by inject()
+    internal val proxyController: top.yukonga.mishka.platform.ProxyServiceController by inject()
+    internal val widgetObserver by lazy {
+        MishkaWidgetObserver(this, appScope, connectionManager, trafficStatistics, overrideStore)
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -56,6 +68,8 @@ class MishkaApplication : Application() {
         )
         reclaimRootOwnedImported()
         updateScheduler.start()
+        trafficStatistics.start()
+        widgetObserver.refresh()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val prefs = getSharedPreferences("mishka_prefs", MODE_PRIVATE)
@@ -63,6 +77,11 @@ class MishkaApplication : Application() {
             HiddenApiBypass.addHiddenApiExemptions("Landroid/content/pm/ApplicationInfo;->setEnableOnBackInvokedCallback")
             setEnableOnBackInvokedCallback(applicationInfo, enable)
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        widgetObserver.refresh()
     }
 
     /**

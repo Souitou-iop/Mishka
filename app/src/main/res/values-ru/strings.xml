@@ -626,13 +626,8 @@
     <string name="widget_status_error">Ошибка</string>
     <string name="widget_status_stopped">Остановлено</string>
     <string name="widget_no_node">Нет узла</string>
-    <string name="widget_mode_value">Режим: %1$s</string>
-    <string name="widget_node_value">Узел: %1$s</string>
-    <string name="widget_upload_value">↑ %1$s</string>
-    <string name="widget_download_value">↓ %1$s</string>
     <string name="widget_start">Запустить</string>
     <string name="widget_stop">Остановить</string>
-    <string name="widget_description">Статус прокси Mishka и быстрый переключатель</string>
     <!-- Config diagnostics -->
     <string name="settings_diagnostics">Диагностика</string>
     <string name="settings_diagnostics_summary">Предпросмотр итогового конфига, цепочки transform и runtime override</string>
@@ -664,4 +659,23 @@
     <string name="tailscale_secure_storage_unavailable">Защищённое хранилище недоступно; ключ авторизации не сохранён.</string>
     <string name="tailscale_hostname_default">Использовать имя устройства Android</string>
     <string name="tailscale_hostname_restart_required">Смена имени устройства вступит в силу после перезапуска прокси.</string>
+
+    <!-- Widget variants and local cumulative traffic -->
+    <string name="widget_statistics_title">Статистика трафика</string>
+    <string name="widget_statistics_description">Накопленный трафик и текущая скорость с последнего сброса</string>
+    <string name="widget_control_title">Управление прокси</string>
+    <string name="widget_control_description">Включение прокси и выбор режима</string>
+    <string name="widget_combined_title">Обзор прокси</string>
+    <string name="widget_combined_description">Трафик, текущий узел, режимы и переключатель</string>
+    <string name="widget_total_upload">Отправлено</string>
+    <string name="widget_total_download">Получено</string>
+    <string name="widget_refresh">Обновить</string>
+    <string name="widget_rule">Правила</string>
+    <string name="widget_global">Глобально</string>
+    <string name="widget_direct">Напрямую</string>
+    <string name="widget_mode_selected">%1$s, выбран</string>
+    <string name="widget_mode_select">Выбрать %1$s</string>
+    <string name="settings_reset_traffic">Сбросить статистику трафика</string>
+    <string name="settings_reset_traffic_summary">Очистить локальные счётчики без отключения прокси</string>
+    <string name="settings_reset_traffic_confirm">Сбросить накопленный трафик? Это действие нельзя отменить. Лимиты подписки не изменятся.</string>
 </resources>

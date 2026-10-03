@@ -60,7 +60,6 @@ import top.yukonga.mishka.viewmodel.ProviderViewModel
 import top.yukonga.mishka.viewmodel.ProxyViewModel
 import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
-import top.yukonga.mishka.widget.MishkaWidgetProvider
 
 private const val STATE_DEEPLINK_NONCE = "deeplink_nonce"
 
@@ -97,7 +96,6 @@ class MainActivity : ComponentActivity() {
     private var wifiPermissionCallback: ((Boolean) -> Unit)? = null
     private var latestThemeConfig: ThemeConfig? = null
     private var contentReady = false
-    private var widgetTrafficJob: kotlinx.coroutines.Job? = null
 
     // 深链导入请求：AppNavigation 消费后回调置空
     private val pendingDeepLinkImport = mutableStateOf<DeepLinkImportRequest?>(null)
@@ -232,27 +230,6 @@ class MainActivity : ComponentActivity() {
                 providerViewModel.setRepository(repo)
                 connectionViewModel.setRepository(repo)
                 dnsQueryViewModel.setRepository(repo)
-                widgetTrafficJob?.cancel()
-                widgetTrafficJob = repo?.let { active ->
-                    lifecycleScope.launch {
-                        active.trafficFlow().collect { traffic ->
-                            MishkaWidgetProvider.updateFromTraffic(this@MainActivity, traffic, null)
-                        }
-                    }
-                }
-            }
-        }
-
-        // 主屏 widget 的运行时刷新：本进程持有 bridge 状态与共享 repository，是唯一能在代理运行
-        // 期间把状态/速率推给 widget 的地方。widget 进程不在前台时不会被拉起，故只在前台活着时刷新
-        // （onUpdate/点击另有自己的刷新路径）。
-        lifecycleScope.launch {
-            ProxyServiceBridge.state.collect { status ->
-                if (status.state == ProxyState.Running) {
-                    MishkaWidgetProvider.refresh(this@MainActivity)
-                } else {
-                    MishkaWidgetProvider.updateState(this@MainActivity)
-                }
             }
         }
 

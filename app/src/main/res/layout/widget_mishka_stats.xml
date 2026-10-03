@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<LinearLayout xmlns:ns0="http://schemas.android.com/apk/res/android" ns0:id="@+id/widget_root" ns0:layout_width="match_parent" ns0:layout_height="match_parent" ns0:background="@drawable/widget_background" ns0:orientation="vertical" ns0:padding="12dp">
+    <LinearLayout ns0:layout_width="match_parent" ns0:layout_height="wrap_content" ns0:orientation="horizontal" ns0:gravity="center_vertical" ns0:baselineAligned="false">
+        <TextView ns0:id="@+id/widget_title" ns0:layout_width="0dp" ns0:layout_height="wrap_content" ns0:text="@string/widget_statistics_title" ns0:textSize="14sp" ns0:textColor="@color/widget_text_primary" ns0:maxLines="1" ns0:ellipsize="end" ns0:layout_weight="1" ns0:textStyle="bold" />
+        <TextView ns0:id="@+id/widget_status" ns0:layout_width="16dp" ns0:layout_height="wrap_content" ns0:text="@string/widget_status_dot" ns0:textSize="11sp" ns0:textColor="@color/widget_text_secondary" ns0:maxLines="1" ns0:ellipsize="end" />
+        <ImageView ns0:id="@+id/widget_refresh" ns0:layout_width="32dp" ns0:layout_height="32dp" ns0:padding="7dp" ns0:src="@drawable/widget_refresh" ns0:contentDescription="@string/widget_refresh" />
+    </LinearLayout>
+    <LinearLayout ns0:layout_width="match_parent" ns0:layout_height="0dp" ns0:orientation="horizontal" ns0:gravity="center_vertical" ns0:layout_weight="1" ns0:baselineAligned="false">
+        <TextView ns0:id="@+id/widget_upload_label" ns0:layout_width="46dp" ns0:layout_height="wrap_content" ns0:text="@string/widget_total_upload" ns0:textSize="11sp" ns0:textColor="@color/widget_text_secondary" ns0:maxLines="1" ns0:ellipsize="end" />
+        <TextView ns0:id="@+id/widget_total_upload" ns0:layout_width="0dp" ns0:layout_height="match_parent" ns0:text="@string/widget_zero_bytes" ns0:textSize="15sp" ns0:textColor="@color/widget_text_primary" ns0:maxLines="1" ns0:ellipsize="end" ns0:layout_weight="1" ns0:textStyle="bold" ns0:includeFontPadding="false" ns0:gravity="center_vertical" />
+    </LinearLayout>
+    <LinearLayout ns0:layout_width="match_parent" ns0:layout_height="0dp" ns0:orientation="horizontal" ns0:gravity="center_vertical" ns0:layout_weight="1" ns0:baselineAligned="false">
+        <TextView ns0:id="@+id/widget_download_label" ns0:layout_width="46dp" ns0:layout_height="wrap_content" ns0:text="@string/widget_total_download" ns0:textSize="11sp" ns0:textColor="@color/widget_text_secondary" ns0:maxLines="1" ns0:ellipsize="end" />
+        <TextView ns0:id="@+id/widget_total_download" ns0:layout_width="0dp" ns0:layout_height="match_parent" ns0:text="@string/widget_zero_bytes" ns0:textSize="15sp" ns0:textColor="@color/widget_text_primary" ns0:maxLines="1" ns0:ellipsize="end" ns0:layout_weight="1" ns0:textStyle="bold" ns0:includeFontPadding="false" ns0:gravity="center_vertical" />
+    </LinearLayout>
+    <LinearLayout ns0:layout_width="match_parent" ns0:layout_height="wrap_content" ns0:orientation="horizontal" ns0:gravity="center_vertical" ns0:baselineAligned="false">
+        <TextView ns0:id="@+id/widget_upload" ns0:layout_width="0dp" ns0:layout_height="wrap_content" ns0:text="@string/widget_zero_upload_speed" ns0:textSize="11sp" ns0:textColor="@color/widget_text_secondary" ns0:maxLines="1" ns0:ellipsize="end" ns0:layout_weight="1" />
+        <TextView ns0:id="@+id/widget_download" ns0:layout_width="0dp" ns0:layout_height="wrap_content" ns0:text="@string/widget_zero_download_speed" ns0:textSize="11sp" ns0:textColor="@color/widget_text_secondary" ns0:maxLines="1" ns0:ellipsize="end" ns0:layout_weight="1" />
+    </LinearLayout>
+</LinearLayout>

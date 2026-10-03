@@ -27,6 +27,7 @@ import top.yukonga.mishka.data.database.SelectionDao
 import top.yukonga.mishka.data.database.SelectionEntity
 import top.yukonga.mishka.domain.repository.MihomoRepository
 import top.yukonga.mishka.platform.PlatformStorage
+import top.yukonga.mishka.platform.ProxyServiceBridge
 import top.yukonga.mishka.platform.StorageKeys
 import top.yukonga.mishka.util.describe
 
@@ -264,6 +265,7 @@ class ProxyViewModel(
                         .toPersistentList()
                 )
                 saveSelection(group, proxy)
+                ProxyServiceBridge.requestNotificationRefresh()
             }
         }
     }
@@ -279,6 +281,7 @@ class ProxyViewModel(
                 // 校验先于 DB 写：clearSelection 按当前 uuid 定位，repo 切走后会误删新订阅
                 if (repository !== repo) return@launch
                 clearSelection(group)
+                ProxyServiceBridge.requestNotificationRefresh()
                 // now 由 mihomo 重新择优，本地推算不出
                 loadProxies()
             }

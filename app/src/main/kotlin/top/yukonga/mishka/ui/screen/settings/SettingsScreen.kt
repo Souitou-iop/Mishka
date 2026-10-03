@@ -1,5 +1,8 @@
 package top.yukonga.mishka.ui.screen.settings
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +32,9 @@ import top.yukonga.mishka.ui.component.groupedCardItems
 import top.yukonga.mishka.ui.util.WideContentBox
 import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.TextButton
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
+import top.yukonga.miuix.kmp.window.WindowDialog
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
@@ -56,12 +62,14 @@ fun SettingsScreen(
     onNavigateBackup: () -> Unit = {},
     onNavigateDiagnostics: () -> Unit = {},
     onNavigateAbout: () -> Unit = {},
+    onResetTrafficStatistics: () -> Unit = {},
     bootStartManager: BootStartManager? = null,
     storage: PlatformStorage? = null,
     onHideTaskCardChange: ((Boolean) -> Unit)? = null,
     hasRootPermission: Boolean = false,
     isProxyRunning: Boolean = false,
 ) {
+    var showResetTraffic by remember { mutableStateOf(false) }
     val scrollBehavior = MiuixScrollBehavior()
     var isAutoStartEnabled by remember {
         mutableStateOf(bootStartManager?.isEnabled() ?: false)
@@ -330,6 +338,13 @@ fun SettingsScreen(
                                 )
                             })
                         }
+                        add(CardItem("trafficStatistics") {
+                            ArrowPreference(
+                                title = stringResource(R.string.settings_reset_traffic),
+                                summary = stringResource(R.string.settings_reset_traffic_summary),
+                                onClick = { showResetTraffic = true },
+                            )
+                        })
                         add(CardItem("theme") {
                             ArrowPreference(
                                 title = stringResource(R.string.settings_theme_title),
@@ -349,4 +364,23 @@ fun SettingsScreen(
             }
         }
     }
+    WindowDialog(
+        show = showResetTraffic,
+        title = stringResource(R.string.settings_reset_traffic),
+        summary = stringResource(R.string.settings_reset_traffic_confirm),
+        onDismissRequest = { showResetTraffic = false },
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                text = stringResource(R.string.common_cancel), modifier = Modifier.weight(1f),
+                onClick = { showResetTraffic = false },
+            )
+            TextButton(
+                text = stringResource(R.string.common_confirm), modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+                onClick = { showResetTraffic = false; onResetTrafficStatistics() },
+            )
+        }
+    }
+
 }

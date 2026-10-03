@@ -675,13 +675,8 @@
     <string name="widget_status_error">Error</string>
     <string name="widget_status_stopped">Stopped</string>
     <string name="widget_no_node">No node</string>
-    <string name="widget_mode_value">Mode: %1$s</string>
-    <string name="widget_node_value">Node: %1$s</string>
-    <string name="widget_upload_value">↑ %1$s</string>
-    <string name="widget_download_value">↓ %1$s</string>
     <string name="widget_start">Start</string>
     <string name="widget_stop">Stop</string>
-    <string name="widget_description">Mishka proxy status and quick toggle</string>
     <!-- Config diagnostics -->
     <string name="settings_diagnostics">Diagnostics</string>
     <string name="settings_diagnostics_summary">Preview the effective config, transform chain and runtime overrides</string>
@@ -710,4 +705,27 @@
     <string name="diagnostics_root_mode">ROOT mode</string>
     <string name="diagnostics_yes">Yes</string>
     <string name="diagnostics_no">No</string>
+
+    <!-- Widget variants and local cumulative traffic -->
+    <string name="widget_statistics_title">Traffic statistics</string>
+    <string name="widget_statistics_description">Accumulated upload and download since the last reset, with live speeds</string>
+    <string name="widget_control_title">Proxy controls</string>
+    <string name="widget_control_description">Proxy switch and Rule, Global or Direct mode</string>
+    <string name="widget_combined_title">Proxy overview</string>
+    <string name="widget_combined_description">Traffic statistics, current node, proxy modes and switch</string>
+    <string name="widget_total_upload">Uploaded</string>
+    <string name="widget_total_download">Downloaded</string>
+    <string name="widget_refresh">Refresh</string>
+    <string name="widget_rule">Rule</string>
+    <string name="widget_global">Global</string>
+    <string name="widget_direct">Direct</string>
+    <string name="widget_mode_selected">%1$s, selected</string>
+    <string name="widget_mode_select">Switch to %1$s</string>
+    <string name="settings_reset_traffic">Reset traffic statistics</string>
+    <string name="settings_reset_traffic_summary">Clear local cumulative traffic without disconnecting the proxy</string>
+    <string name="settings_reset_traffic_confirm">Reset accumulated upload and download? This cannot be undone. Subscription quotas are unaffected.</string>
+    <string name="widget_zero_bytes" translatable="false">0 B</string>
+    <string name="widget_zero_upload_speed" translatable="false">↑ 0 B/s</string>
+    <string name="widget_zero_download_speed" translatable="false">↓ 0 B/s</string>
+    <string name="widget_status_dot" translatable="false">●</string>
 </resources>
