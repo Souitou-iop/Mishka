@@ -19,7 +19,7 @@
   - 修复 YAML merge key `<<` 在 override 展开中的处理，并覆盖无 transform、加密配置和变换失败场景的测试。
 
 - `build: harden CI signing and test gates`
-  - Build 和 Release workflow 增加 JVM 单测、固定 Actions SHA，并只在受信任的 main push 且签名材料齐全时注入 keystore；构建后清理临时签名文件。
+  - Build 和 Release workflow 增加 native 与 JVM 单测、固定 Actions SHA，并只在受信任的 main push 且签名材料齐全时注入 keystore；构建后清理临时签名文件。
 
 ### 验证
 
