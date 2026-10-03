@@ -43,20 +43,33 @@ val gitVersionCode = getGitVersionCode()
 
 val properties = Properties()
 runCatching { project.rootProject.file("local.properties").inputStream().use { properties.load(it) } }
-val keystorePath: String? = properties.getProperty("KEYSTORE_PATH") ?: System.getenv("KEYSTORE_PATH")
-val keystorePwd: String? = properties.getProperty("KEYSTORE_PASS") ?: System.getenv("KEYSTORE_PASS")
-val alias: String? = properties.getProperty("KEY_ALIAS") ?: System.getenv("KEY_ALIAS")
-val pwd: String? = properties.getProperty("KEY_PASSWORD") ?: System.getenv("KEY_PASSWORD")
+fun readBuildValue(name: String): String? =
+    listOf(properties.getProperty(name), System.getenv(name))
+        .firstNotNullOfOrNull { it?.trim()?.takeIf(String::isNotEmpty) }
+
+val keystorePath = readBuildValue("KEYSTORE_PATH")
+val keystorePwd = readBuildValue("KEYSTORE_PASS")
+val alias = readBuildValue("KEY_ALIAS")
+val pwd = readBuildValue("KEY_PASSWORD")
+val keystoreFile = keystorePath?.let { project.file(it) }
+val hasSigningConfig = keystoreFile?.let { file ->
+    file.isFile && file.length() > 0L &&
+        keystorePwd != null && alias != null && pwd != null
+} == true
 
 @Suppress("UnstableApiUsage")
 android {
-    if (keystorePath != null) {
+    if (hasSigningConfig) {
+        val signingKeystoreFile = requireNotNull(keystoreFile)
+        val signingKeystorePwd = requireNotNull(keystorePwd)
+        val signingAlias = requireNotNull(alias)
+        val signingPwd = requireNotNull(pwd)
         signingConfigs {
             create("release") {
-                storeFile = file(keystorePath)
-                storePassword = keystorePwd
-                keyAlias = alias
-                keyPassword = pwd
+                storeFile = signingKeystoreFile
+                storePassword = signingKeystorePwd
+                keyAlias = signingAlias
+                keyPassword = signingPwd
                 enableV2Signing = true
                 enableV3Signing = true
             }
@@ -66,10 +79,10 @@ android {
         release {
             optimization.enable = true
             vcsInfo.include = false
-            if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
+            if (hasSigningConfig) signingConfig = signingConfigs.getByName("release")
         }
         debug {
-            if (keystorePath != null) signingConfig = signingConfigs.getByName("release")
+            if (hasSigningConfig) signingConfig = signingConfigs.getByName("release")
         }
         // 独立安装包：不覆盖正式 Mishka，使用独立包名与 debug 签名。
         create("tailscale") {
@@ -146,7 +159,7 @@ androidComponents {
     finalizeDsl { ext ->
         // 插件只关旧 DSL 的 isMinifyEnabled，管不到随 initWith(release) 继承来的 optimization.enable
         ext.buildTypes.findByName("nonMinifiedRelease")?.optimization?.enable = false
-        if (keystorePath == null) {
+        if (!hasSigningConfig) {
             val debugSigning = ext.signingConfigs.getByName("debug")
             listOf("nonMinifiedRelease", "benchmarkRelease").forEach { name ->
                 ext.buildTypes.findByName(name)?.signingConfig = debugSigning

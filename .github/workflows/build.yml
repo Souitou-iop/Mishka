@@ -11,6 +11,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
@@ -20,27 +23,23 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     env:
-      # 与 release.yml 同一把签名（debug keystore），保证 CI 产物可以互相覆盖安装；
-      # 不注入时 runner 每次生成随机 debug 签名，产物永远装不到旧包头上
-      KEYSTORE_PATH: ${{ github.workspace }}/signing/keystore.jks
-      KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      # 只在受信任的 main push 且四项签名材料齐全时签名；PR/手动运行保持未签名构建。
+      CI_SIGNING_ENABLED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.KEYSTORE_BASE64 != '' && secrets.KEYSTORE_PASS != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Set up JDK
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: 21
           distribution: zulu
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version-file: app/src/main/native/mishka_core/go.mod
           # 默认缓存键找工作目录根的 go.sum，本仓根目录没有；不指到实际被编译的模块上
@@ -48,33 +47,54 @@ jobs:
           cache-dependency-path: app/src/main/native/mishka_core/go.sum
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Run unit tests
+        run: ./gradlew :app:testDebugUnitTest -x buildMihomo_arm64_v8a --no-daemon
 
       - name: Download GeoIP files
         run: ./gradlew :app:downloadGeoFiles
 
       - name: Decode keystore
+        if: env.CI_SIGNING_ENABLED == 'true'
         run: |
+          set -euo pipefail
+          umask 077
           mkdir -p signing
-          echo "$KEYSTORE_BASE64" | base64 -d > signing/keystore.jks
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > signing/keystore.jks
+          test -s signing/keystore.jks
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug
+        env:
+          KEYSTORE_PATH: ${{ env.CI_SIGNING_ENABLED == 'true' && format('{0}/signing/keystore.jks', github.workspace) || '' }}
+          KEYSTORE_PASS: ${{ env.CI_SIGNING_ENABLED == 'true' && secrets.KEYSTORE_PASS || '' }}
+          KEY_ALIAS: ${{ env.CI_SIGNING_ENABLED == 'true' && secrets.KEY_ALIAS || '' }}
+          KEY_PASSWORD: ${{ env.CI_SIGNING_ENABLED == 'true' && secrets.KEY_PASSWORD || '' }}
 
       - name: Build Release APK
         run: ./gradlew :app:assembleRelease
+        env:
+          KEYSTORE_PATH: ${{ env.CI_SIGNING_ENABLED == 'true' && format('{0}/signing/keystore.jks', github.workspace) || '' }}
+          KEYSTORE_PASS: ${{ env.CI_SIGNING_ENABLED == 'true' && secrets.KEYSTORE_PASS || '' }}
+          KEY_ALIAS: ${{ env.CI_SIGNING_ENABLED == 'true' && secrets.KEY_ALIAS || '' }}
+          KEY_PASSWORD: ${{ env.CI_SIGNING_ENABLED == 'true' && secrets.KEY_PASSWORD || '' }}
+
+      - name: Clean up keystore
+        if: ${{ always() }}
+        run: rm -f -- "$GITHUB_WORKSPACE/signing/keystore.jks"
 
       - name: Upload Debug APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Mishka-debug
           path: app/build/outputs/apk/debug/*.apk
           archive: false
 
       - name: Upload Release APK
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Mishka-release
           path: app/build/outputs/apk/release/*.apk
