@@ -1,11 +1,13 @@
 package top.yukonga.mishka.data.diagnostics
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import top.yukonga.mishka.data.bridge.MishkaCoreBridge
 import top.yukonga.mishka.data.bridge.MishkaCoreError
 import top.yukonga.mishka.data.repository.OverrideJsonStore
+import top.yukonga.mishka.data.repository.ProfileProcessor
 import top.yukonga.mishka.data.repository.SubscriptionRepositoryImpl
 import top.yukonga.mishka.data.store.OverrideProfileStore
 import top.yukonga.mishka.data.store.ProfileTransformWriter
@@ -86,42 +88,34 @@ class ConfigDiagnosticsBuilder(
      * 返回把校验结果叠加后的快照。
      */
     suspend fun validate(): ConfigPreview = withContext(Dispatchers.IO) {
-        val base = buildPreview()
-        val subscription = subscriptions.loadActiveRuntimeSubscription()
-        if (subscription == null) {
-            return@withContext base.copy(
-                validation = ConfigValidationResult.Invalid("no active profile"),
-            )
-        }
-        val transformPath = try {
-            transformWriter.write(subscription, VALIDATE_TRANSFORM)
-        } catch (e: Exception) {
-            return@withContext base.copy(
-                validation = ConfigValidationResult.Invalid(
-                    e.message.orEmpty().ifBlank { "failed to build transform" },
+        // native 校验会设置 provider 解密的全局 age key，必须与导入/更新使用同一把锁。
+        ProfileProcessor.withProcessLock {
+            val base = buildPreview()
+            val subscription = subscriptions.loadActiveRuntimeSubscription()
+            if (subscription == null) {
+                return@withProcessLock base.copy(
+                    validation = ConfigValidationResult.Invalid("no active profile"),
+                )
+            }
+            val transformPath = try {
+                transformWriter.write(subscription, VALIDATE_TRANSFORM)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                return@withProcessLock base.copy(
+                    validation = ConfigValidationResult.Invalid(
+                        e.message.orEmpty().ifBlank { "failed to build transform" },
+                    ),
+                )
+            }
+            base.copy(
+                validation = validateProfileConfig(
+                    File(fileManager.getImportedDir(subscription.id)),
+                    transformPath?.let(::File),
+                    subscription.ageSecretKey,
                 ),
             )
         }
-        if (transformPath == null) {
-            // 没有任何 transform：直接校验原始订阅配置，等价于运行时"无脚本"分支
-            return@withContext base.copy(validation = ConfigValidationResult.Valid)
-        }
-        val result = try {
-            MishkaCoreBridge.validateTransform(
-                File(fileManager.getImportedDir(subscription.id)),
-                File(transformPath),
-                subscription.ageSecretKey,
-            )
-            ConfigValidationResult.Valid
-        } catch (e: MishkaCoreError) {
-            ConfigValidationResult.Invalid(e.message.orEmpty().removePrefix("validate config:").trim())
-        } catch (e: IllegalStateException) {
-            // MishkaCoreBridge.validateTransform 校验失败时抛 IllegalStateException
-            ConfigValidationResult.Invalid(e.message.orEmpty().ifBlank { "transform validation failed" })
-        } finally {
-            File(transformPath).delete()
-        }
-        base.copy(validation = result)
     }
 
     private fun readTailscalePreview(): TailscalePreview {
@@ -172,4 +166,22 @@ class ConfigDiagnosticsBuilder(
         const val VALIDATE_TRANSFORM = "diagnostics.validate.json"
         const val TAILSCALE_STEP_NAME = "Mishka Tailscale"
     }
+}
+
+internal fun validateProfileConfig(
+    workDir: File,
+    transform: File?,
+    ageSecretKey: String,
+    validateTransform: (File, File?, String) -> Unit = MishkaCoreBridge::validateTransform,
+): ConfigValidationResult = try {
+    validateTransform(workDir, transform, ageSecretKey)
+    ConfigValidationResult.Valid
+} catch (e: CancellationException) {
+    throw e
+} catch (e: MishkaCoreError) {
+    ConfigValidationResult.Invalid(e.message.orEmpty().removePrefix("validate config:").trim())
+} catch (e: Exception) {
+    ConfigValidationResult.Invalid(e.message.orEmpty().ifBlank { "transform validation failed" })
+} finally {
+    transform?.delete()
 }

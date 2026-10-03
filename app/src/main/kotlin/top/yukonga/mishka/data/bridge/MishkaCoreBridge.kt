@@ -123,8 +123,8 @@ object MishkaCoreBridge {
     }
 
     /** 按运行时同一条解密、脚本、Parse 链路校验变换，保存失败时不污染覆写文件。 */
-    fun validateTransform(workDir: java.io.File, transform: java.io.File, ageSecretKey: String) {
-        val raw = nativeValidateTransform(workDir.path, transform.path, ageSecretKey)
+    fun validateTransform(workDir: java.io.File, transform: java.io.File?, ageSecretKey: String) {
+        val raw = nativeValidateTransform(workDir.path, transform?.path.orEmpty(), ageSecretKey)
         val result = interpretTransformResult(raw)
         check(result.valid) { "native transform validation returned invalid result" }
     }

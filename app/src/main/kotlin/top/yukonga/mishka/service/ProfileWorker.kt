@@ -18,6 +18,7 @@ import top.yukonga.mishka.data.repository.OverrideJsonStore
 import top.yukonga.mishka.data.repository.ProfileProcessor
 import top.yukonga.mishka.data.repository.SubscriptionProxyResolver
 import top.yukonga.mishka.data.repository.SubscriptionRepositoryImpl
+import top.yukonga.mishka.data.store.ProfileTransformWriter
 import top.yukonga.mishka.platform.PlatformStorage
 import top.yukonga.mishka.platform.ProxyServiceController
 import top.yukonga.mishka.util.describe
@@ -40,6 +41,7 @@ class ProfileWorker : Service() {
 
     // 与 UI 侧共享同一 store：内存值是权威值，自建实例读不到刚落的设置
     private val overrideStore: OverrideJsonStore by inject()
+    private val transformWriter: ProfileTransformWriter by inject()
 
     private val updateScheduler: ProfileUpdateScheduler by inject()
 
@@ -129,6 +131,7 @@ class ProfileWorker : Service() {
             fileManager = fileManager,
             defaultProfileName = getString(R.string.subscription_default_name),
             proxyResolver = proxyResolver,
+            transformWriter = transformWriter,
         )
 
         try {

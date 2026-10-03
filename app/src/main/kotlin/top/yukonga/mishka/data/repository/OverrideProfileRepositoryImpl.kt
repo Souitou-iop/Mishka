@@ -136,8 +136,8 @@ class OverrideProfileRepositoryImpl(
         }
     }
 
-    private suspend fun mutate(block: suspend () -> Unit) = lock.withLock {
-        ProfileProcessor.withProcessLock(block)
+    private suspend fun mutate(block: suspend () -> Unit) = withContext(Dispatchers.IO) {
+        lock.withLock { ProfileProcessor.withProcessLock(block) }
     }
 
     private suspend fun validateForCurrent(profile: OverrideProfile, format: OverrideFormat, content: String?) {

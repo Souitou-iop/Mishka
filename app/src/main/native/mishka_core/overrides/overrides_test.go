@@ -72,6 +72,102 @@ func TestYAMLPrependAndAppend(t *testing.T) {
 	}
 }
 
+func TestYAMLMergeKeySequenceOperators(t *testing.T) {
+	const inherited = "defaults: &defaults {nameserver: [1.1.1.1]}\ndns: {<<: *defaults}\n"
+	cases := []struct {
+		name     string
+		base     string
+		override string
+		want     []any
+	}{
+		{"append", inherited, "dns: {nameserver+: [8.8.8.8]}\n", []any{"1.1.1.1", "8.8.8.8"}},
+		{"prepend", inherited, "dns: {+nameserver: [8.8.8.8]}\n", []any{"8.8.8.8", "1.1.1.1"}},
+		{"both", inherited, "dns: {+nameserver: [9.9.9.9], nameserver+: [8.8.8.8]}\n", []any{"9.9.9.9", "1.1.1.1", "8.8.8.8"}},
+		{"local before merge", "defaults: &defaults {nameserver: [1.1.1.1]}\ndns: {nameserver: [9.9.9.9], <<: *defaults}\n", "dns: {nameserver+: [8.8.8.8]}\n", []any{"9.9.9.9", "8.8.8.8"}},
+		{"local after merge", "defaults: &defaults {nameserver: [1.1.1.1]}\ndns: {<<: *defaults, nameserver: [9.9.9.9]}\n", "dns: {+nameserver: [8.8.8.8]}\n", []any{"8.8.8.8", "9.9.9.9"}},
+		{"first merge source wins", "first: &first {nameserver: [1.1.1.1]}\nsecond: &second {nameserver: [9.9.9.9]}\ndns: {<<: [*first, *second]}\n", "dns: {nameserver+: [8.8.8.8]}\n", []any{"1.1.1.1", "8.8.8.8"}},
+		{"nested merge", "defaults: &defaults {nameserver: [1.1.1.1]}\nparent: &parent {<<: *defaults}\ndns: {<<: *parent}\n", "dns: {nameserver+: [8.8.8.8]}\n", []any{"1.1.1.1", "8.8.8.8"}},
+		{"inherited mapping", "defaults: &defaults {dns: {nameserver: [1.1.1.1], enable: true}}\n<<: *defaults\n", "dns: {nameserver+: [8.8.8.8]}\n", []any{"1.1.1.1", "8.8.8.8"}},
+		{"override inherited operator", inherited, "dns: {<<: &ops {nameserver+: [8.8.8.8]}}\n", []any{"1.1.1.1", "8.8.8.8"}},
+		{"override local operator wins", inherited, "dns: {nameserver+: [8.8.8.8], <<: &ops {nameserver+: [9.9.9.9]}}\n", []any{"1.1.1.1", "8.8.8.8"}},
+		{"local null masks inherited", "defaults: &defaults {nameserver: [1.1.1.1]}\ndns: {<<: *defaults, nameserver: null}\n", "dns: {nameserver+: [8.8.8.8]}\n", []any{"8.8.8.8"}},
+		{"inherited null", "defaults: &defaults {nameserver: null}\ndns: {<<: *defaults}\n", "dns: {nameserver+: [8.8.8.8]}\n", []any{"8.8.8.8"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			out := mustYAML(t, tc.base, tc.override)
+			dns := out["dns"].(map[string]any)
+			if !reflect.DeepEqual(dns["nameserver"], tc.want) {
+				t.Fatalf("nameserver = %v, want %v", dns["nameserver"], tc.want)
+			}
+		})
+	}
+}
+
+func TestYAMLMergeKeyOverridesKeepAliasesIndependent(t *testing.T) {
+	base := `defaults: &defaults
+  nameserver: [1.1.1.1]
+  nested: {enable: true, values: [base]}
+dns: {<<: *defaults}
+sibling: {<<: *defaults}
+alias: *defaults
+`
+	out := mustYAML(t, base, `dns:
+  +nameserver: [9.9.9.9]
+  nameserver+: [8.8.8.8]
+  nested: {values+: [added]}
+`)
+	unchanged := map[string]any{
+		"nameserver": []any{"1.1.1.1"},
+		"nested":     map[string]any{"enable": true, "values": []any{"base"}},
+	}
+	for _, name := range []string{"defaults", "sibling", "alias"} {
+		if !reflect.DeepEqual(out[name], unchanged) {
+			t.Fatalf("%s = %v, want %v", name, out[name], unchanged)
+		}
+	}
+	wantDNS := map[string]any{
+		"nameserver": []any{"9.9.9.9", "1.1.1.1", "8.8.8.8"},
+		"nested":     map[string]any{"enable": true, "values": []any{"base", "added"}},
+	}
+	if !reflect.DeepEqual(out["dns"], wantDNS) {
+		t.Fatalf("dns = %v, want %v", out["dns"], wantDNS)
+	}
+}
+
+func TestYAMLMergeKeyAppendToScalarFails(t *testing.T) {
+	base := "defaults: &defaults {nameserver: scalar}\ndns: {<<: *defaults}\n"
+	for _, operator := range []string{"nameserver+", "+nameserver"} {
+		if _, err := ApplyYAML([]byte(base), []byte("dns: {"+operator+": [8.8.8.8]}\n")); err == nil {
+			t.Errorf("%s: expected inherited scalar error", operator)
+		}
+	}
+}
+
+func TestYAMLQuotedMergeKeyIsLiteral(t *testing.T) {
+	out := mustYAML(t, `dns: {"<<": {nameserver: [1.1.1.1]}}
+`, "dns: {nameserver+: [8.8.8.8]}\n")
+	want := map[string]any{
+		"<<":         map[string]any{"nameserver": []any{"1.1.1.1"}},
+		"nameserver": []any{"8.8.8.8"},
+	}
+	if !reflect.DeepEqual(out["dns"], want) {
+		t.Fatalf("dns = %v, want %v", out["dns"], want)
+	}
+}
+
+func TestMergeKeyNonMappingSourceRejected(t *testing.T) {
+	for _, source := range []string{"scalar", "null", "[{nameserver: [1.1.1.1]}, scalar]"} {
+		base := []byte("dns: {<<: " + source + "}\n")
+		if _, err := ApplyYAML(base, []byte("dns: {nameserver+: [8.8.8.8]}\n")); err == nil {
+			t.Errorf("YAML source %s: expected merge key error", source)
+		}
+		if _, err := ApplyJS(base, `function main(c) { return c; }`); err == nil {
+			t.Errorf("JS source %s: expected merge key error", source)
+		}
+	}
+}
+
 func TestYAMLAppendToMissingOrNull(t *testing.T) {
 	out := mustYAML(t, "proxies:\nrules: []\n", "proxies+: [a]\n+missing: [b]\n")
 	if !reflect.DeepEqual(out["proxies"], []any{"a"}) || !reflect.DeepEqual(out["missing"], []any{"b"}) {

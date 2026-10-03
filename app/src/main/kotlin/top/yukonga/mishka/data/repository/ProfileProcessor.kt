@@ -3,14 +3,20 @@ package top.yukonga.mishka.data.repository
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.yukonga.mishka.data.bridge.CoreFetchProgress
 import top.yukonga.mishka.data.bridge.MishkaCoreBridge
 import top.yukonga.mishka.data.bridge.MishkaCoreError
+import top.yukonga.mishka.data.database.decodeOverrideIds
+import top.yukonga.mishka.data.store.ProfileTransformWriter
 import top.yukonga.mishka.domain.model.ProfileType
+import top.yukonga.mishka.domain.model.Subscription
 import top.yukonga.mishka.platform.ProfileFileManager
+import java.io.File
 import java.net.URI
 
 /**
@@ -42,6 +48,7 @@ class ProfileProcessor(
     /** 自动命名兜底链的最后一环，由调用方按 locale 取值——data 层拿不到资源 */
     private val defaultProfileName: String,
     private val proxyResolver: SubscriptionProxyResolver,
+    private val transformWriter: ProfileTransformWriter,
 ) {
 
     /**
@@ -82,6 +89,7 @@ class ProfileProcessor(
                     val snap = PendingSnapshot(
                         imported.uuid, imported.name, imported.type, imported.source,
                         imported.userAgent, imported.ageSecretKey, imported.interval,
+                        imported.overrideIds, imported.overrideSortPreference,
                     )
                     val dir = fileManager.prepareProcessing(uuid)
                     // File 类型需要保留旧 config.yaml 作基准；Url 类型会被 force=true 覆盖下载
@@ -97,6 +105,7 @@ class ProfileProcessor(
                     PendingSnapshot(
                         pending.uuid, pending.name, pending.type, pending.source,
                         pending.userAgent, pending.ageSecretKey, pending.interval,
+                        pending.overrideIds, pending.overrideSortPreference,
                     ) to dir
                 }
             }
@@ -123,6 +132,24 @@ class ProfileProcessor(
                     throw e
                 }
 
+                val transformPath = transformWriter.write(snapshot.toSubscription(), PROCESSING_TRANSFORM)
+                // fetchAndValid 已校验原始配置，只有实际变换才需要再 Parse。
+                if (transformPath != null) {
+                    try {
+                        MishkaCoreBridge.validateTransform(
+                            File(workDir),
+                            File(transformPath),
+                            snapshot.ageSecretKey,
+                        )
+                    } catch (e: MishkaCoreError) {
+                        throw ConfigValidationException(e.message.orEmpty().removePrefix("validate config:").trim())
+                    } finally {
+                        File(transformPath).delete()
+                    }
+                }
+                // 阻塞脚本校验返回时可能已取消，不能带着取消状态进入不可取消的提交区。
+                currentCoroutineContext().ensureActive()
+
                 // commit 从这里到块尾不可取消：目录 rename 换入与 DB 更新之间被打断就是两者不一致。
                 // 块内还要再取 profileLock，等锁期间同样取消不了；processLock → profileLock
                 // 这个嵌套顺序全仓只此一处，别在别处反着取
@@ -132,6 +159,9 @@ class ProfileProcessor(
                             val current = repo.queryImported(uuid)
                                 ?: throw IllegalArgumentException("Imported profile $uuid disappeared during update")
                             check(current.uuid == snapshot.uuid)
+                            check(snapshot.hasSameTransformInputs(current.ageSecretKey, current.overrideIds, current.overrideSortPreference)) {
+                                "Profile transform inputs changed during processing"
+                            }
                             fileManager.commitProcessingToImported(uuid)
                             repo.updateImported(
                                 uuid = uuid,
@@ -144,6 +174,9 @@ class ProfileProcessor(
                             val currentPending = repo.queryPending(uuid)
                                 ?: throw IllegalArgumentException("Pending profile $uuid disappeared during commit")
                             check(currentPending.uuid == snapshot.uuid)
+                            check(snapshot.hasSameTransformInputs(currentPending.ageSecretKey, currentPending.overrideIds, currentPending.overrideSortPreference)) {
+                                "Profile transform inputs changed during processing"
+                            }
                             fileManager.commitProcessingToImported(uuid)
                             repo.commitPending(
                                 uuid = uuid,
@@ -199,6 +232,7 @@ class ProfileProcessor(
         private val processLock = Mutex()
 
         private const val TAG = "ProfileProcessor"
+        private const val PROCESSING_TRANSFORM = "processing/profile.validate.transform.json"
 
         /**
          * 以进程级锁独占执行 [block]。WebDAV 备份/恢复用：备份读取 imported/ 期间不能有
@@ -217,4 +251,23 @@ internal data class PendingSnapshot(
     val userAgent: String,
     val ageSecretKey: String,
     val interval: Long,
-)
+    val overrideIds: String = "",
+    val overrideSortPreference: String = "",
+) {
+    fun toSubscription(): Subscription = Subscription(
+        id = uuid,
+        name = name,
+        type = type,
+        url = source,
+        userAgent = userAgent,
+        ageSecretKey = ageSecretKey,
+        interval = interval,
+        overrideIds = overrideIds.decodeOverrideIds(),
+        overrideSortPreference = overrideSortPreference.decodeOverrideIds(),
+    )
+
+    fun hasSameTransformInputs(ageSecretKey: String, overrideIds: String, overrideSortPreference: String): Boolean =
+        this.ageSecretKey == ageSecretKey &&
+            this.overrideIds.decodeOverrideIds() == overrideIds.decodeOverrideIds() &&
+            this.overrideSortPreference.decodeOverrideIds() == overrideSortPreference.decodeOverrideIds()
+}

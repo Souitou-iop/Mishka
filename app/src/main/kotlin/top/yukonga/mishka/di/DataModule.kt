@@ -71,6 +71,7 @@ val dataModule = module {
             fileManager = get(),
             defaultProfileName = androidContext().getString(R.string.subscription_default_name),
             proxyResolver = get(),
+            transformWriter = get(),
         )
     }
     single {

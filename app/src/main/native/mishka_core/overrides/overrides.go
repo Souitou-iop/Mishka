@@ -269,6 +269,24 @@ func expandNode(node *yaml.Node, budget *int, visiting map[*yaml.Node]bool) (*ya
 			copied.Content[i] = c
 		}
 	}
+	if copied.Kind == yaml.MappingNode {
+		for i := 0; i+1 < len(copied.Content); i += 2 {
+			key := copied.Content[i]
+			if key.Kind != yaml.ScalarNode || key.Tag != "!!merge" {
+				continue
+			}
+			// 先展开子节点再解析合并键，保留别名环检测，继承值也不会与原锚点共享。
+			pairs, err := mappingPairs(&copied)
+			if err != nil {
+				return nil, err
+			}
+			copied.Content = make([]*yaml.Node, 0, len(pairs)*2)
+			for _, pair := range pairs {
+				copied.Content = append(copied.Content, pair[0], pair[1])
+			}
+			break
+		}
+	}
 	return &copied, nil
 }
 
