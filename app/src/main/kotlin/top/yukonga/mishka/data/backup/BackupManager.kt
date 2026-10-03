@@ -20,6 +20,7 @@ import top.yukonga.mishka.data.repository.SubscriptionRepositoryImpl
 import top.yukonga.mishka.domain.model.ProfileType
 import top.yukonga.mishka.platform.BootStartManager
 import top.yukonga.mishka.platform.PlatformStorage
+import top.yukonga.mishka.platform.ProxyServiceBridge
 import top.yukonga.mishka.platform.StorageKeys
 import top.yukonga.mishka.service.ProfileFileOps
 import java.io.File
@@ -169,15 +170,34 @@ class BackupManager(
     }
 
     /** 从 SAF 文档恢复。 */
-    suspend fun importFrom(uri: Uri) = withContext(Dispatchers.IO) {
-        val input = context.contentResolver.openInputStream(uri)
-            ?: throw BackupException("Cannot open $uri for reading")
-        input.use { restoreBackup(it) }
+    suspend fun importFrom(uri: Uri) = withRestoreMaintenance {
+        withContext(Dispatchers.IO) {
+            val input = context.contentResolver.openInputStream(uri)
+                ?: throw BackupException("Cannot open $uri for reading")
+            input.use { restoreBackup(it) }
+        }
     }
 
     /** 从普通文件恢复（WebDAV 下载的中转）。 */
-    suspend fun restoreBackupFrom(file: File) = withContext(Dispatchers.IO) {
-        file.inputStream().use { restoreBackup(it) }
+    suspend fun restoreBackupFrom(file: File) = withRestoreMaintenance {
+        withContext(Dispatchers.IO) {
+            file.inputStream().use { restoreBackup(it) }
+        }
+    }
+
+    /**
+     * Restore is guarded here rather than at individual UI/CLI call sites so every entry point
+     * shares the same stopped-state and proxy-start exclusion window.
+     */
+    private suspend fun <T> withRestoreMaintenance(block: suspend () -> T): T {
+        if (!ProxyServiceBridge.tryAcquireRestoreWindow()) {
+            throw BackupException("backup restore requires a stopped proxy")
+        }
+        return try {
+            block()
+        } finally {
+            ProxyServiceBridge.releaseRestoreWindow()
+        }
     }
 
     /**

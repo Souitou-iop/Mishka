@@ -469,11 +469,11 @@ class MishkaCliCommandHandler(
         return buildJsonObject { put("uri", "content://${context.packageName}.cli/backup"); put("size", file.length()) }
     }
 
-    private suspend fun importBackup(): JsonObject = withRestoreMaintenance {
+    private suspend fun importBackup(): JsonObject {
         val file = MishkaCliTransfer.backupFile(context)
         require(file.isFile && file.length() > 0) { "no uploaded backup; use content write first" }
         backupManager.restoreBackupFrom(file)
-        buildJsonObject { put("restored", true); put("restartRequired", true) }
+        return buildJsonObject { put("restored", true); put("restartRequired", true) }
     }
 
     private fun webDavClient(): WebDavClient {
@@ -521,7 +521,7 @@ class MishkaCliCommandHandler(
         }
     }
 
-    private suspend fun webDavDownload(restore: Boolean): JsonObject = withOptionalRestoreMaintenance(restore) {
+    private suspend fun webDavDownload(restore: Boolean): JsonObject {
         val client = webDavClient()
         val snapshots = client.listSnapshots()
             .sortedWith(compareByDescending<RemoteBackup> { it.version }.thenByDescending { it.name })
@@ -546,32 +546,12 @@ class MishkaCliCommandHandler(
                 }
             }
         }
-        buildJsonObject {
+        return buildJsonObject {
             put("found", found)
             put("name", name)
             version?.let { put("version", it) }
             put("restored", found && restore)
             put("restartRequired", found && restore)
-        }
-    }
-
-    private suspend fun <T> withOptionalRestoreMaintenance(
-        restore: Boolean,
-        block: suspend () -> T,
-    ): T = if (restore) withRestoreMaintenance(block) else block()
-
-    private suspend fun <T> withRestoreMaintenance(block: suspend () -> T): T {
-        require(ProxyServiceBridge.tryAcquireRestoreWindow()) {
-            if (serviceController.status.value.state == ProxyState.Stopped) {
-                "backup restore is already in progress"
-            } else {
-                "stop proxy before backup restore"
-            }
-        }
-        return try {
-            block()
-        } finally {
-            ProxyServiceBridge.releaseRestoreWindow()
         }
     }
 
