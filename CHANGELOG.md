@@ -2,7 +2,7 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
-## 未发布
+## 1.1.5 — 2026-10-03
 
 - `widget: rebuild into stats, control and overview variants`
   - 原单一 3×2 小组件拆为三款：2×2 流量统计（累计与实时速率）、2×2 代理控制（规则／全局／直连竖排切换、状态与开关）、4×2 代理概览（数据＋模式＋开关，按桌面分配的空间在 compact / roomy 两套布局间自适应）。
@@ -10,10 +10,26 @@
   - 三款小组件跟随 App 主题（自动／浅色／深色／纯黑）；模式切换统一经 `ProxyServiceController.switchProxyMode` → `restartWhenReady` 生效，开关在 VPN 未授权时经 `VpnPermissionActivity` 走授权流程。
   - 小组件刷新由 Application 级 `MishkaWidgetObserver` 统一驱动（bridge 状态、累计流量、节点选择、主题配置），取代原 MainActivity 内的流量推送管道。
 
+- `backup: make restore transactional and gate proxy starts`
+  - 备份恢复期间建立进程级维护窗口，阻止代理启动、重启和 ROOT attach 与文件／数据库换入交叉执行。
+  - 恢复临界区不可取消，失败时按已完成的 rename 步骤回滚；补充 profile UUID 与归档路径校验，避免恢复后文件树与数据库不一致。
+
+- `subscription: validate transforms before profile commit`
+  - 诊断和订阅导入／更新共用 native transform 校验链路；在 override、age key 或选择排序输入发生变化时拒绝提交过期结果。
+  - 修复 YAML merge key `<<` 在 override 展开中的处理，并覆盖无 transform、加密配置和变换失败场景的测试。
+
+- `build: harden CI signing and test gates`
+  - Build 和 Release workflow 增加 JVM 单测、固定 Actions SHA，并只在受信任的 main push 且签名材料齐全时注入 keystore；构建后清理临时签名文件。
+
 ### 验证
 
-- `:app:compileDebugKotlin`、83 项单元测试（累计差分、重置基线、主题判定、observer 换代）与 `:app:assembleDebug` 通过。
-- PHK110 真机以独立测试包内的原生 RemoteViews 渲染浅色／深色／自动三种主题，隔离内核实测：停止保留、重启累加、运行中清零后基线正确；模式与开关的点击事件、程序化刷新不反向触发启停均通过。
+- `:app:compileDebugKotlin`、`:app:testDebugUnitTest`（83 项）通过。
+- native `go test ./...`（Go 1.25.0 工具链）通过。
+- `:app:assembleDebug` 将在本次 release commit 后重新执行；GitHub Release workflow 还会验证签名 APK。
+
+### 验证边界
+
+- 本次没有在真机上重新执行完整备份恢复、订阅变换和 CI 签名链路；这些路径由新增单测、构建验证和 release workflow 覆盖。
 
 ## 1.1.4 — 2026-10-02
 
