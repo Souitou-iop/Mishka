@@ -57,22 +57,28 @@ class ProxyServiceController(private val context: Context) {
     val status: StateFlow<ProxyServiceStatus> = ProxyServiceBridge.state
 
     fun start(subscriptionId: String? = null) {
-        val id = resolveStartSubscriptionId(subscriptionId) ?: return
-        val mode = getTunMode()
-        val intent = buildServiceIntent(mode, Op.Start).apply {
-            putExtra(EXTRA_SUBSCRIPTION_ID, id)
+        val accepted = ProxyServiceBridge.runIfStartAllowed {
+            val id = resolveStartSubscriptionId(subscriptionId) ?: return@runIfStartAllowed
+            val mode = getTunMode()
+            val intent = buildServiceIntent(mode, Op.Start).apply {
+                putExtra(EXTRA_SUBSCRIPTION_ID, id)
+            }
+            context.startForegroundService(intent)
         }
-        context.startForegroundService(intent)
+        if (!accepted) Log.i(TAG, "Rejecting START while backup restore is in progress")
     }
 
     fun restart(subscriptionId: String? = null) {
-        val id = resolveStartSubscriptionId(subscriptionId) ?: return
-        // 优先读 bridge：代理运行中时它反映实际 Service；否则读 storage（用户最新选择）
-        val mode = activeModeOrStored()
-        val intent = buildServiceIntent(mode, Op.Restart).apply {
-            putExtra(EXTRA_SUBSCRIPTION_ID, id)
+        val accepted = ProxyServiceBridge.runIfStartAllowed {
+            val id = resolveStartSubscriptionId(subscriptionId) ?: return@runIfStartAllowed
+            // 优先读 bridge：代理运行中时它反映实际 Service；否则读 storage（用户最新选择）
+            val mode = activeModeOrStored()
+            val intent = buildServiceIntent(mode, Op.Restart).apply {
+                putExtra(EXTRA_SUBSCRIPTION_ID, id)
+            }
+            context.startService(intent)
         }
-        context.startService(intent)
+        if (!accepted) Log.i(TAG, "Rejecting RESTART while backup restore is in progress")
     }
 
     fun stop() {
@@ -153,11 +159,14 @@ class ProxyServiceController(private val context: Context) {
             storage.putString(StorageKeys.SERVICE_WAS_RUNNING, "false")
             return
         }
-        val intent = buildServiceIntent(mode, Op.Start).apply {
-            putExtra(EXTRA_SUBSCRIPTION_ID, id)
-            putExtra(MishkaRootService.EXTRA_ATTACH_ONLY, true)
+        val accepted = ProxyServiceBridge.runIfStartAllowed {
+            val intent = buildServiceIntent(mode, Op.Start).apply {
+                putExtra(EXTRA_SUBSCRIPTION_ID, id)
+                putExtra(MishkaRootService.EXTRA_ATTACH_ONLY, true)
+            }
+            context.startForegroundService(intent)
         }
-        context.startForegroundService(intent)
+        if (!accepted) Log.i(TAG, "Rejecting ROOT attach while backup restore is in progress")
     }
 
     /**

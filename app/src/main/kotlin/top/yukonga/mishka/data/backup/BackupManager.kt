@@ -5,6 +5,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.room3.withWriteTransaction
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -157,7 +158,9 @@ class BackupManager(
      * 中转文件：WebDAV 收发都需要一个能带长度、可重复读的 body，用完即删。
      */
     suspend fun <T> withTransferFile(block: suspend (File) -> T): T {
-        val file = File(context.cacheDir, TRANSFER_FILE)
+        val file = withContext(Dispatchers.IO) {
+            File.createTempFile("mishka-backup-transfer-", ".zip", context.cacheDir)
+        }
         return try {
             block(file)
         } finally {
@@ -185,14 +188,18 @@ class BackupManager(
      */
     private suspend fun restoreBackup(input: InputStream) = ProfileProcessor.withProcessLock {
         withContext(Dispatchers.IO) {
-            // 校验（含版本过新）排在解包之后：staging 是临时目录，正式目录直到 swapIn 才被触碰，
+            // 校验（含版本过新）排在解包之后：staging 是临时目录，正式目录直到换入阶段才被触碰，
             // 失败路径只是把 staging 删掉
             val snapshot = extractToStaging(input)
 
-            // 文件与 DB 一起换：processLock 挡不住只持 profileLock 的 create/patch/delete
-            repository.withProfileLock {
-                swapStagedFiles()
-                replaceDatabase(snapshot)
+            // 文件与 DB 一起换：旧文件必须一直保留到 DB 提交成功，否则 DB 失败会留下旧 DB + 新文件。
+            // NonCancellable 覆盖 swap → DB 事务 → 回滚窗口，避免取消打断恢复临界区。
+            withContext(NonCancellable) {
+                repository.withProfileLock {
+                    withSwappedFiles {
+                        replaceDatabase(snapshot)
+                    }
+                }
             }
 
             // prefs 恢复（黑名单 key 不写入，本机运行时状态不被备份污染）
@@ -292,7 +299,7 @@ class BackupManager(
     private fun extractToStaging(input: InputStream): BackupSnapshot {
         val staging = File(mihomoDir, RESTORE_STAGING)
         staging.deleteRecursively()
-        val stagingRoot = staging.also { it.mkdirs() }.canonicalPath + File.separator
+        val stagingRoot = staging.also { it.mkdirs() }.canonicalFile.toPath()
         try {
             var snapshotBytes: ByteArray? = null
             ZipInputStream(input.buffered()).use { zis ->
@@ -300,20 +307,22 @@ class BackupManager(
                 while (entry != null) {
                     val name = entry.name
                     when {
-                        entry.isDirectory -> Unit
-                        name == ENTRY_SNAPSHOT -> snapshotBytes = zis.readBytes()
+                        name == ENTRY_SNAPSHOT && !entry.isDirectory -> snapshotBytes = zis.readBytes()
                         name.startsWith("$ENTRY_FILES_PREFIX/") -> {
                             val relative = name.removePrefix("$ENTRY_FILES_PREFIX/")
-                            val target = File(staging, relative)
-                            // zip-slip 防御：规范化后必须仍在 staging 内
-                            if (!target.canonicalPath.startsWith(stagingRoot)) {
-                                throw BackupException("Illegal entry path: $name")
-                            }
-                            // 旧归档（过滤上线前产出）可能携带源设备的 Tailscale 节点身份，
-                            // 落盘 = 恢复成别人的 node key，恢复侧一律丢弃
-                            if (!isTailscaleStateEntry(relative)) {
-                                target.parentFile?.mkdirs()
-                                target.outputStream().use { zis.copyTo(it) }
+                            validateProfileEntryPath(relative)
+                            if (!entry.isDirectory) {
+                                val target = File(staging, relative)
+                                // zip-slip 防御：规范化后必须仍在 staging 内；Path.startsWith 按路径段比较。
+                                if (!target.canonicalFile.toPath().startsWith(stagingRoot)) {
+                                    throw BackupException("Illegal entry path: $name")
+                                }
+                                // 旧归档（过滤上线前产出）可能携带源设备的 Tailscale 节点身份，
+                                // 落盘 = 恢复成别人的 node key，恢复侧一律丢弃
+                                if (!isTailscaleStateEntry(relative)) {
+                                    target.parentFile?.mkdirs()
+                                    target.outputStream().use { zis.copyTo(it) }
+                                }
                             }
                         }
                     }
@@ -326,6 +335,7 @@ class BackupManager(
             if (snapshot.version > BACKUP_VERSION) {
                 throw BackupException("Backup version ${snapshot.version} is newer than supported $BACKUP_VERSION")
             }
+            validateSnapshotUuids(snapshot)
             return snapshot
         } catch (e: Throwable) {
             staging.deleteRecursively()
@@ -333,41 +343,93 @@ class BackupManager(
         }
     }
 
-    /** 把 staging 里的内容 rename 换入正式目录；失败从 old/ 回滚。 */
-    private fun swapStagedFiles() {
+    /**
+     * 在 DB 事务期间保留 old/，只有 block 成功返回后才清理；失败则按实际完成的 rename 逆序回滚。
+     * 这样 replaceDatabase 抛错时，旧 DB 仍对应旧文件。
+     */
+    private suspend fun <T> withSwappedFiles(block: suspend () -> T): T {
         val staging = File(mihomoDir, RESTORE_STAGING)
         val old = File(mihomoDir, RESTORE_OLD)
+        val swapped = mutableListOf<SwappedTarget>()
+        var preserveRollback = false
         old.deleteRecursively()
         try {
-            old.mkdirs()
-            RESTORE_TARGETS.forEach { swapIn(it, staging, old) }
-        } catch (e: Throwable) {
-            RESTORE_TARGETS.forEach { rollbackFrom(it, old) }
-            throw e
+            if (!old.exists() && !old.mkdirs()) {
+                throw BackupException("Cannot create restore rollback directory")
+            }
+            RESTORE_TARGETS.forEach { name ->
+                val current = File(mihomoDir, name)
+                val saved = File(old, name)
+                val incoming = File(staging, name)
+                val currentMoved = current.exists()
+                if (currentMoved && !current.renameTo(saved)) {
+                    throw BackupException("Cannot move aside $name")
+                }
+
+                val incomingExists = incoming.exists()
+                val target = SwappedTarget(name = name, currentMoved = currentMoved)
+                swapped += target
+                if (incomingExists && !incoming.renameTo(current)) {
+                    throw BackupException("Cannot swap in $name")
+                }
+                target.incomingMoved = incomingExists
+            }
+            return block()
+        } catch (error: Throwable) {
+            val rollbackFailure = runCatching {
+                swapped.asReversed().forEach { rollbackSwap(it, old) }
+            }.exceptionOrNull()
+            if (rollbackFailure != null) {
+                preserveRollback = true
+                error.addSuppressed(rollbackFailure)
+            }
+            throw error
         } finally {
             staging.deleteRecursively()
-            old.deleteRecursively()
+            if (!preserveRollback) old.deleteRecursively()
         }
     }
 
-    /** 正式目录挪进 old/，再换入 staging 的同名项；归档缺该项时正式目录留空。 */
-    private fun swapIn(name: String, staging: File, old: File) {
-        val current = File(mihomoDir, name)
-        if (current.exists() && !current.renameTo(File(old, name))) {
-            throw BackupException("Cannot move aside $name")
+    private data class SwappedTarget(
+        val name: String,
+        val currentMoved: Boolean,
+        var incomingMoved: Boolean = false,
+    )
+
+    private fun rollbackSwap(target: SwappedTarget, old: File) {
+        val current = File(mihomoDir, target.name)
+        if (target.incomingMoved && current.exists() && !current.deleteRecursively()) {
+            throw BackupException("Cannot remove restored ${target.name}")
         }
-        val incoming = File(staging, name)
-        if (incoming.exists() && !incoming.renameTo(current)) {
-            throw BackupException("Cannot swap in $name")
+        if (target.currentMoved) {
+            val saved = File(old, target.name)
+            if (!saved.exists() || !saved.renameTo(current)) {
+                throw BackupException("Cannot restore old ${target.name}")
+            }
         }
     }
 
-    private fun rollbackFrom(name: String, old: File) {
-        val saved = File(old, name)
-        if (!saved.exists()) return
-        val current = File(mihomoDir, name)
-        current.deleteRecursively()
-        saved.renameTo(current)
+    private fun validateSnapshotUuids(snapshot: BackupSnapshot) {
+        (snapshot.imported.asSequence() + snapshot.pending.asSequence())
+            .map { it.uuid }
+            .plus(snapshot.selections.asSequence().map { it.uuid })
+            .forEach(::requireValidProfileUuid)
+    }
+
+    private fun requireValidProfileUuid(uuid: String) {
+        if (!ProfileFileOps.isValidProfileUuid(uuid)) {
+            throw BackupException("Invalid profile UUID")
+        }
+    }
+
+    private fun validateProfileEntryPath(relative: String) {
+        val segments = relative.split('/')
+        if (segments.firstOrNull() in PROFILE_DIRECTORY_NAMES) {
+            val uuid = segments.getOrNull(1)
+            if (uuid == null || !ProfileFileOps.isValidProfileUuid(uuid)) {
+                throw BackupException("Invalid profile directory")
+            }
+        }
     }
 
     private fun zipDirIfExists(zip: ZipOutputStream, dir: File, entryPrefix: String) {
@@ -412,9 +474,9 @@ class BackupManager(
         internal fun isTailscaleStateEntry(relativePath: String): Boolean =
             relativePath.split('/').contains(TAILSCALE_STATE_DIR)
 
-        // WebDAV 收发的中转文件，固定名覆盖式（备份本身就是固定名覆盖式）
-        private const val TRANSFER_FILE = "mishka-backup-transfer.zip"
+        // WebDAV 收发的中转文件：每次调用使用独立临时文件，避免并发请求互相覆盖。
         private val RESTORE_TARGETS = listOf("imported", "pending", OVERRIDES_DIR, OVERRIDE_FILE)
+        private val PROFILE_DIRECTORY_NAMES = setOf("imported", "pending")
 
         /**
          * 不进备份也不从备份恢复的 key，三类语义：

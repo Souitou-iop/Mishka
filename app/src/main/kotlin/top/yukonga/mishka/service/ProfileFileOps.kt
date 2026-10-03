@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.UUID
 
 /**
  * 订阅文件操作。三阶段目录：pending → processing → imported。
@@ -14,6 +15,9 @@ object ProfileFileOps {
     // 回滚目录带 uuid：进程死在两次 rename 之间时，靠它还原 imported/{uuid}/
     private const val COMMIT_STAGING = "commit.new"
     private const val COMMIT_OLD_PREFIX = "commit.old."
+    private val PROFILE_UUID_PATTERN = Regex(
+        "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89a-fA-F][0-9a-fA-F]{3}-[0-9a-fA-F]{12}",
+    )
 
     private fun getWorkDir(context: Context): File {
         val dir = File(context.filesDir, "mihomo")
@@ -24,12 +28,14 @@ object ProfileFileOps {
     // === 目录访问 ===
 
     fun getImportedDir(context: Context, uuid: String): File {
+        requireValidProfileUuid(uuid)
         val dir = File(getWorkDir(context), "imported/$uuid")
         if (!dir.exists()) dir.mkdirs()
         return dir
     }
 
     fun getPendingDir(context: Context, uuid: String): File {
+        requireValidProfileUuid(uuid)
         val dir = File(getWorkDir(context), "pending/$uuid")
         if (!dir.exists()) dir.mkdirs()
         return dir
@@ -48,7 +54,7 @@ object ProfileFileOps {
         File(getImportedDir(context, uuid), "config.yaml")
 
     fun hasValidConfig(context: Context, uuid: String?): Boolean {
-        if (uuid.isNullOrEmpty()) return false
+        if (uuid.isNullOrEmpty() || !isValidProfileUuid(uuid)) return false
         val config = File(File(getWorkDir(context), "imported/$uuid"), "config.yaml")
         return config.isFile && config.length() > 0
     }
@@ -56,8 +62,10 @@ object ProfileFileOps {
     /**
      * ROOT 模式运行时沙箱目录（mihomo 以 uid=0 在此写 provider/ruleset 缓存，不污染 imported/）。
      */
-    fun getRuntimeDir(context: Context, uuid: String): File =
-        File(getWorkDir(context), "runtime/$uuid")
+    fun getRuntimeDir(context: Context, uuid: String): File {
+        requireValidProfileUuid(uuid)
+        return File(getWorkDir(context), "runtime/$uuid")
+    }
 
     // === pending 写入 ===
 
@@ -69,6 +77,7 @@ object ProfileFileOps {
     }
 
     fun releasePending(context: Context, uuid: String) {
+        requireValidProfileUuid(uuid)
         val pending = File(getWorkDir(context), "pending/$uuid")
         if (pending.exists()) pending.deleteRecursively()
     }
@@ -80,6 +89,7 @@ object ProfileFileOps {
      * 若 pending/{uuid}/ 不存在（File 类型尚未写入），仍创建空 processing/。
      */
     fun prepareProcessing(context: Context, uuid: String): File {
+        requireValidProfileUuid(uuid)
         val processing = getProcessingDir(context)
         processing.deleteRecursively()
         processing.mkdirs()
@@ -123,7 +133,12 @@ object ProfileFileOps {
         File(workDir, COMMIT_STAGING).deleteRecursively()
         workDir.listFiles { f -> f.isDirectory && f.name.startsWith(COMMIT_OLD_PREFIX) }
             ?.forEach { saved ->
-                val imported = File(workDir, "imported/${saved.name.removePrefix(COMMIT_OLD_PREFIX)}")
+                val uuid = saved.name.removePrefix(COMMIT_OLD_PREFIX)
+                if (!isValidProfileUuid(uuid)) {
+                    removeMaybeRootOwned(saved)
+                    return@forEach
+                }
+                val imported = File(workDir, "imported/$uuid")
                 if (imported.exists()) removeMaybeRootOwned(saved) else saved.renameTo(imported)
             }
     }
@@ -134,6 +149,7 @@ object ProfileFileOps {
      * 拷贝排在所有删除之前，失败时 imported/{uuid}/ 仍完整——update 路径下它是唯一副本。
      */
     fun commitProcessingToImported(context: Context, uuid: String) {
+        requireValidProfileUuid(uuid)
         val workDir = getWorkDir(context)
         val processing = getProcessingDir(context)
         val imported = File(workDir, "imported/$uuid")
@@ -174,6 +190,7 @@ object ProfileFileOps {
     // === 删除与复制 ===
 
     fun deleteProfileDirs(context: Context, uuid: String) {
+        requireValidProfileUuid(uuid)
         val imported = File(getWorkDir(context), "imported/$uuid")
         val pending = File(getWorkDir(context), "pending/$uuid")
         val runtime = File(getWorkDir(context), "runtime/$uuid")
@@ -200,7 +217,7 @@ object ProfileFileOps {
             .flatMap { sub -> File(workDir, sub).listFiles()?.filter { it.isDirectory }.orEmpty() }
             .map { it.name }
             .distinct()
-            .filter { it !in knownUuids }
+            .filter { isValidProfileUuid(it) && it !in knownUuids }
         orphans.forEach { deleteProfileDirs(context, it) }
         return orphans
     }
@@ -212,6 +229,7 @@ object ProfileFileOps {
      * imported/ 里已包含 -prefetch 落盘的 provider 文件，copy 一并带过去，mihomo 启动可跳过 HTTP 拉取。
      */
     fun prepareRootRuntime(context: Context, uuid: String): File {
+        requireValidProfileUuid(uuid)
         val imported = File(getWorkDir(context), "imported/$uuid")
         val runtime = getRuntimeDir(context, uuid)
         // 先清残留（可能是 root:root 遗孤，Kotlin 删不掉走 su）
@@ -254,6 +272,7 @@ object ProfileFileOps {
 
     /** 读取订阅目录的最后修改时间（不创建目录）。目录不存在或 mtime <= 0 返回 null。 */
     fun getProfileDirLastModified(context: Context, uuid: String, pending: Boolean): Long? {
+        requireValidProfileUuid(uuid)
         val sub = if (pending) "pending/$uuid" else "imported/$uuid"
         val dir = File(getWorkDir(context), sub)
         if (!dir.exists()) return null
@@ -262,6 +281,7 @@ object ProfileFileOps {
 
     /** 列出 imported/{uuid} 下所有普通文件的相对路径（递归）。目录不存在返回空列表。 */
     fun listImportedFiles(context: Context, uuid: String): List<String> {
+        requireValidProfileUuid(uuid)
         val root = File(getWorkDir(context), "imported/$uuid")
         if (!root.exists() || !root.isDirectory) return emptyList()
         val result = mutableListOf<String>()
@@ -275,25 +295,41 @@ object ProfileFileOps {
     }
 
     fun readImportedFile(context: Context, uuid: String, relativePath: String): String? {
+        requireValidProfileUuid(uuid)
         val root = File(getWorkDir(context), "imported/$uuid")
         val target = File(root, relativePath)
         val canonicalRoot = root.canonicalFile
         val canonicalTarget = runCatching { target.canonicalFile }.getOrNull() ?: return null
-        if (!canonicalTarget.startsWith(canonicalRoot)) return null
+        if (!isWithin(canonicalRoot, canonicalTarget)) return null
         if (!canonicalTarget.isFile) return null
         return runCatching { canonicalTarget.readText() }.getOrNull()
     }
 
     fun writeImportedFile(context: Context, uuid: String, relativePath: String, content: String) {
+        requireValidProfileUuid(uuid)
         val root = File(getWorkDir(context), "imported/$uuid")
         val target = File(root, relativePath)
         val canonicalRoot = root.canonicalFile
         val canonicalTarget = target.canonicalFile
-        require(canonicalTarget.startsWith(canonicalRoot)) {
+        require(isWithin(canonicalRoot, canonicalTarget)) {
             "Path traversal blocked: $relativePath"
         }
         canonicalTarget.parentFile?.mkdirs()
         canonicalTarget.writeText(content)
+    }
+
+    private fun isWithin(root: File, target: File): Boolean =
+        target.toPath().startsWith(root.toPath())
+
+    private fun requireValidProfileUuid(uuid: String) {
+        require(isValidProfileUuid(uuid)) { "Invalid profile UUID" }
+    }
+
+    internal fun isValidProfileUuid(uuid: String): Boolean {
+        if (!PROFILE_UUID_PATTERN.matches(uuid)) return false
+        val parsed = runCatching { UUID.fromString(uuid) }.getOrNull() ?: return false
+        return parsed.version() == 4 && parsed.variant() == 2 &&
+            parsed.toString().equals(uuid, ignoreCase = true)
     }
 
     // === GeoIP 共享管理 ===

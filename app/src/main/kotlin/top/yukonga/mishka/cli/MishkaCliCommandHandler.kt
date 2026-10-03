@@ -38,6 +38,7 @@ import top.yukonga.mishka.domain.repository.SubscriptionRepository
 import top.yukonga.mishka.platform.BootStartManager
 import top.yukonga.mishka.platform.PlatformStorage
 import top.yukonga.mishka.platform.ProfileFileManager
+import top.yukonga.mishka.platform.ProxyServiceBridge
 import top.yukonga.mishka.platform.ProxyServiceController
 import top.yukonga.mishka.platform.ProxyState
 import top.yukonga.mishka.platform.StorageKeys
@@ -468,12 +469,11 @@ class MishkaCliCommandHandler(
         return buildJsonObject { put("uri", "content://${context.packageName}.cli/backup"); put("size", file.length()) }
     }
 
-    private suspend fun importBackup(): JsonObject {
-        require(serviceController.status.value.state == ProxyState.Stopped) { "stop proxy before backup import" }
+    private suspend fun importBackup(): JsonObject = withRestoreMaintenance {
         val file = MishkaCliTransfer.backupFile(context)
         require(file.isFile && file.length() > 0) { "no uploaded backup; use content write first" }
         backupManager.restoreBackupFrom(file)
-        return buildJsonObject { put("restored", true); put("restartRequired", true) }
+        buildJsonObject { put("restored", true); put("restartRequired", true) }
     }
 
     private fun webDavClient(): WebDavClient {
@@ -521,10 +521,7 @@ class MishkaCliCommandHandler(
         }
     }
 
-    private suspend fun webDavDownload(restore: Boolean): JsonObject {
-        require(!restore || serviceController.status.value.state == ProxyState.Stopped) {
-            "stop proxy before WebDAV restore"
-        }
+    private suspend fun webDavDownload(restore: Boolean): JsonObject = withOptionalRestoreMaintenance(restore) {
         val client = webDavClient()
         val snapshots = client.listSnapshots()
             .sortedWith(compareByDescending<RemoteBackup> { it.version }.thenByDescending { it.name })
@@ -549,12 +546,32 @@ class MishkaCliCommandHandler(
                 }
             }
         }
-        return buildJsonObject {
+        buildJsonObject {
             put("found", found)
             put("name", name)
             version?.let { put("version", it) }
             put("restored", found && restore)
             put("restartRequired", found && restore)
+        }
+    }
+
+    private suspend fun <T> withOptionalRestoreMaintenance(
+        restore: Boolean,
+        block: suspend () -> T,
+    ): T = if (restore) withRestoreMaintenance(block) else block()
+
+    private suspend fun <T> withRestoreMaintenance(block: suspend () -> T): T {
+        require(ProxyServiceBridge.tryAcquireRestoreWindow()) {
+            if (serviceController.status.value.state == ProxyState.Stopped) {
+                "backup restore is already in progress"
+            } else {
+                "stop proxy before backup restore"
+            }
+        }
+        return try {
+            block()
+        } finally {
+            ProxyServiceBridge.releaseRestoreWindow()
         }
     }
 
