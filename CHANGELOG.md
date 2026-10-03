@@ -25,7 +25,7 @@
 
 - `:app:compileDebugKotlin`、`:app:testDebugUnitTest`（83 项）通过。
 - native `go test ./...`（Go 1.25.0 工具链）通过。
-- `:app:assembleDebug` 将在本次 release commit 后重新执行；GitHub Release workflow 还会验证签名 APK。
+- `:app:assembleDebug` 通过（Go 1.25.0 工具链）；GitHub Release workflow 还会验证签名 APK。
 
 ### 验证边界
 
