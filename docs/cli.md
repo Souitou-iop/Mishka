@@ -53,6 +53,9 @@ the five-second runtime timeout. It is intentionally not a fake WebSocket.
 
 `backup import` requires the proxy to be stopped and returns
 `restartRequired=true`. Relaunch Mishka after a successful import so its in-memory
-Room/override state is rebuilt from the restored files.
+Room/override state is rebuilt from the restored files. Restore responses also
+include `tailscaleAuthKeyIncluded`, `tailscaleAuthKeyRestored`, and
+`requiresTailscaleReauth`; the last field is `true` when the backup contained a
+Tailscale key but the target Keystore could not store it.
 
 WebDAV backups created by the current version are immutable snapshots under `Mishka/snapshots/`; normal uploads never overwrite the original app's `Mishka/mishka-backup.zip`. Use `backup.webdav-export-legacy` only when intentionally exporting a snapshot for the original app.

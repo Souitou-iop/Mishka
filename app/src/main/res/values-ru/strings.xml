@@ -546,6 +546,7 @@
     <string name="backup_restore_confirm_summary">Локальные подписки и настройки будут заменены копией с сервера. Это действие необратимо. Продолжить?</string>
     <string name="backup_restore_done_title">Восстановление завершено</string>
     <string name="backup_restore_done_summary">Для применения восстановленных данных требуется перезапуск приложения.</string>
+    <string name="backup_restore_tailscale_reauth">Резервная копия восстановлена, но ключ Tailscale не сохранён. Введите его снова после перезапуска.</string>
     <string name="backup_restart_now">Перезапустить сейчас</string>
     <string name="backup_section_local">Локальная копия</string>
     <string name="backup_export_local">Сохранить в файл</string>

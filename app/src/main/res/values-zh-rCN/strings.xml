@@ -544,6 +544,7 @@
     <string name="backup_restore_confirm_summary">将用服务器上的备份覆盖本地订阅与设置，此操作无法撤销。是否继续？</string>
     <string name="backup_restore_done_title">恢复完成</string>
     <string name="backup_restore_done_summary">需要重启应用以加载恢复后的数据。</string>
+    <string name="backup_restore_tailscale_reauth">备份已恢复，但 Tailscale 密钥无法保存。请在重启后重新输入。</string>
     <string name="backup_restart_now">立即重启</string>
     <string name="backup_section_local">本地备份</string>
     <string name="backup_export_local">备份到文件</string>

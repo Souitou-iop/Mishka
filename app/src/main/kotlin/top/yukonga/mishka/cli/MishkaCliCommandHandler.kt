@@ -21,6 +21,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import top.yukonga.mishka.data.api.MihomoConnectionManager
 import top.yukonga.mishka.data.backup.BackupManager
+import top.yukonga.mishka.data.backup.BackupRestoreResult
 import top.yukonga.mishka.data.backup.RemoteBackup
 import top.yukonga.mishka.data.backup.WebDavClient
 import top.yukonga.mishka.data.diagnostics.ConfigDiagnosticsBuilder
@@ -472,8 +473,14 @@ class MishkaCliCommandHandler(
     private suspend fun importBackup(): JsonObject {
         val file = MishkaCliTransfer.backupFile(context)
         require(file.isFile && file.length() > 0) { "no uploaded backup; use content write first" }
-        backupManager.restoreBackupFrom(file)
-        return buildJsonObject { put("restored", true); put("restartRequired", true) }
+        val result = backupManager.restoreBackupFrom(file)
+        return buildJsonObject {
+            put("restored", true)
+            put("restartRequired", true)
+            put("tailscaleAuthKeyIncluded", result.tailscaleAuthKeyIncluded)
+            put("tailscaleAuthKeyRestored", result.tailscaleAuthKeyRestored)
+            put("requiresTailscaleReauth", result.requiresTailscaleReauth)
+        }
     }
 
     private fun webDavClient(): WebDavClient {
@@ -528,6 +535,7 @@ class MishkaCliCommandHandler(
         var found = false
         var name: String? = null
         var version: Long? = null
+        var restoreResult: BackupRestoreResult? = null
         backupManager.withTransferFile { file ->
             val latest = snapshots.firstOrNull()
             if (latest != null) {
@@ -539,7 +547,7 @@ class MishkaCliCommandHandler(
                 name = if (found) WebDavClient.LEGACY_FILE else null
             }
             if (found && restore) {
-                backupManager.restoreBackupFrom(file)
+                restoreResult = backupManager.restoreBackupFrom(file)
                 if (version != null) {
                     val local = storage.getString(StorageKeys.WEBDAV_SYNC_VERSION, "0").toLongOrNull() ?: 0
                     storage.putString(StorageKeys.WEBDAV_SYNC_VERSION, maxOf(local, version).toString())
@@ -552,6 +560,11 @@ class MishkaCliCommandHandler(
             version?.let { put("version", it) }
             put("restored", found && restore)
             put("restartRequired", found && restore)
+            restoreResult?.let {
+                put("tailscaleAuthKeyIncluded", it.tailscaleAuthKeyIncluded)
+                put("tailscaleAuthKeyRestored", it.tailscaleAuthKeyRestored)
+                put("requiresTailscaleReauth", it.requiresTailscaleReauth)
+            }
         }
     }
 

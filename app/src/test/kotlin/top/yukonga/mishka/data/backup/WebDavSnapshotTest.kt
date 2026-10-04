@@ -10,8 +10,14 @@ class WebDavSnapshotTest {
     fun `snapshot filename carries numeric version`() {
         val name = WebDavClient.newSnapshotName(12)
 
+        assertEquals("mishka-000012.android.mishka", name)
         assertEquals(12L, WebDavClient.parseSnapshotVersion(name))
         assertNotNull(name.substringAfterLast(".", ""))
+    }
+
+    @Test
+    fun `legacy random snapshot names remain readable`() {
+        assertEquals(12L, WebDavClient.parseSnapshotVersion("mishka-000012-ab12cd34.android.mishka"))
     }
 
     @Test

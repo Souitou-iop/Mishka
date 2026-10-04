@@ -98,7 +98,7 @@ This pass used three bounded workers inside the current task workspace; no new u
 
 | Item | Result | Evidence / boundary |
 |---|---|---|
-| #1 Keystore + backup secret handling | **Improved to fail closed** | `SecretStore` now refuses plaintext fallback; `PlatformStorage.getSecret` treats unavailable Keystore as not configured, and `putSecret` reports a secure-storage error to the Tailscale UI. Legacy plaintext is migrated only after a usable Keystore is available; backup still excludes the key. |
+| #1 Keystore + backup secret handling | **Improved to fail closed** | `SecretStore` now refuses plaintext fallback; `PlatformStorage.getSecret` treats unavailable Keystore as not configured, and `putSecret` reports a secure-storage error to the Tailscale UI. Legacy plaintext is migrated only after a usable Keystore is available; backups carry the Tailscale auth key in `BackupSnapshot` and restore it through `SecretStore`, reporting when re-authentication is required. |
 | #2 Tailscale configuration | **Implemented, build-verified** | Empty auth key and invalid non-HTTPS control URL are rejected; generated transform cleanup and localized messages remain in the aggregate patch. Real Tailscale runtime is unverified. |
 | #3 Automated tests | **51 JVM tests passing** | Existing four test classes plus `ServiceStartStateMachineTest` (three cases); no device/native assertions. |
 | #4 Device acceptance | **Preparation only** | `scripts/acceptance/collect-device-evidence.sh` exists, but no authorized device run was performed. |

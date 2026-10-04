@@ -546,6 +546,7 @@
     <string name="backup_restore_confirm_summary">Local subscriptions and settings will be overwritten by the server backup. This cannot be undone. Continue?</string>
     <string name="backup_restore_done_title">Restore completed</string>
     <string name="backup_restore_done_summary">The app needs to restart to load the restored data.</string>
+    <string name="backup_restore_tailscale_reauth">Backup restored, but the Tailscale key could not be stored. Enter it again after restart.</string>
     <string name="backup_restart_now">Restart now</string>
     <string name="backup_section_local">Local backup</string>
     <string name="backup_export_local">Back up to file</string>

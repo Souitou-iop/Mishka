@@ -544,6 +544,7 @@
     <string name="backup_restore_confirm_summary">將以伺服器上的備份覆蓋本機訂閱與設定，此操作無法復原。是否繼續？</string>
     <string name="backup_restore_done_title">還原完成</string>
     <string name="backup_restore_done_summary">需要重新啟動應用程式以載入還原後的資料。</string>
+    <string name="backup_restore_tailscale_reauth">備份已還原，但無法儲存 Tailscale 金鑰。請在重新啟動後重新輸入。</string>
     <string name="backup_restart_now">立即重新啟動</string>
     <string name="backup_section_local">本機備份</string>
     <string name="backup_export_local">備份至檔案</string>

@@ -256,7 +256,13 @@ fun BackupRestoreScreen(
     WindowDialog(
         show = uiState.restoreCompleted,
         title = stringResource(R.string.backup_restore_done_title),
-        summary = stringResource(R.string.backup_restore_done_summary),
+        summary = stringResource(
+            if (uiState.restoreNeedsTailscaleReauth) {
+                R.string.backup_restore_tailscale_reauth
+            } else {
+                R.string.backup_restore_done_summary
+            },
+        ),
         onDismissRequest = {},
     ) {
         TextButton(

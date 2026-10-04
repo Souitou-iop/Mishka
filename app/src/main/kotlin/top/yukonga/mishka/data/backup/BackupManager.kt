@@ -32,6 +32,14 @@ import java.util.zip.ZipOutputStream
 
 class BackupException(message: String) : Exception(message)
 
+data class BackupRestoreResult(
+    val tailscaleAuthKeyIncluded: Boolean,
+    val tailscaleAuthKeyRestored: Boolean,
+) {
+    val requiresTailscaleReauth: Boolean
+        get() = tailscaleAuthKeyIncluded && !tailscaleAuthKeyRestored
+}
+
 @Serializable
 data class BackupProfile(
     val uuid: String,
@@ -206,49 +214,62 @@ class BackupManager(
      *
      * 归档同样是流式读：条目边读边落进 staging，不在内存里聚一份全量解压结果。
      */
-    private suspend fun restoreBackup(input: InputStream) = ProfileProcessor.withProcessLock {
-        withContext(Dispatchers.IO) {
-            // 校验（含版本过新）排在解包之后：staging 是临时目录，正式目录直到换入阶段才被触碰，
-            // 失败路径只是把 staging 删掉
-            val snapshot = extractToStaging(input)
+    private suspend fun restoreBackup(input: InputStream): BackupRestoreResult =
+        ProfileProcessor.withProcessLock {
+            withContext(Dispatchers.IO) {
+                // 校验（含版本过新）排在解包之后：staging 是临时目录，正式目录直到换入阶段才被触碰，
+                // 失败路径只是把 staging 删掉
+                val snapshot = extractToStaging(input)
 
-            // 文件与 DB 一起换：旧文件必须一直保留到 DB 提交成功，否则 DB 失败会留下旧 DB + 新文件。
-            // NonCancellable 覆盖 swap → DB 事务 → 回滚窗口，避免取消打断恢复临界区。
-            withContext(NonCancellable) {
-                repository.withProfileLock {
-                    withSwappedFiles {
-                        replaceDatabase(snapshot)
+                // 文件与 DB 一起换：旧文件必须一直保留到 DB 提交成功，否则 DB 失败会留下旧 DB + 新文件。
+                // NonCancellable 覆盖 swap → DB 事务 → 回滚窗口，避免取消打断恢复临界区。
+                withContext(NonCancellable) {
+                    repository.withProfileLock {
+                        withSwappedFiles {
+                            replaceDatabase(snapshot)
+                        }
                     }
                 }
-            }
 
-            // prefs 恢复（黑名单 key 不写入，本机运行时状态不被备份污染）
-            snapshot.stringPrefs.forEach { (k, v) ->
-                if (k !in EXCLUDED_PREF_KEYS) storage.putString(k, v)
-            }
-            snapshot.stringSetPrefs.forEach { (k, v) ->
-                if (k !in EXCLUDED_PREF_KEYS) storage.putStringSet(k, v.toSet())
-            }
+                // prefs 恢复（黑名单 key 不写入，本机运行时状态不被备份污染）
+                snapshot.stringPrefs.forEach { (k, v) ->
+                    if (k !in EXCLUDED_PREF_KEYS) storage.putString(k, v)
+                }
+                snapshot.stringSetPrefs.forEach { (k, v) ->
+                    if (k !in EXCLUDED_PREF_KEYS) storage.putStringSet(k, v.toSet())
+                }
 
-            // auth key 必须走 putSecret 回写 SecretStore，不能 putString 进明文 prefs。
-            // Keystore 不可用（极少数被裁 ROM）时只跳过本项并记日志：此时 prefs 已写一半、
-            // 文件已换入，抛错只会把恢复停在更糟的中间态，用户事后手动粘贴即可
-            if (snapshot.tailscaleAuthKey.isNotEmpty()) {
-                runCatching { storage.putSecret(StorageKeys.TAILSCALE_AUTH_KEY, snapshot.tailscaleAuthKey) }
-                    .onFailure { Log.w(TAG, "auth key in backup not restored: keystore unavailable", it) }
-            }
+                // auth key 必须走 putSecret 回写 SecretStore，不能 putString 进明文 prefs。
+                // Keystore 不可用时保留已换入的文件与 prefs，并通过结果让调用方提示重新认证。
+                val tailscaleAuthKeyIncluded = snapshot.tailscaleAuthKey.isNotEmpty()
+                val tailscaleAuthKeyRestored = if (tailscaleAuthKeyIncluded) {
+                    runCatching {
+                        storage.putSecret(StorageKeys.TAILSCALE_AUTH_KEY, snapshot.tailscaleAuthKey)
+                        true
+                    }.getOrElse {
+                        Log.w(TAG, "auth key in backup not restored: keystore unavailable", it)
+                        false
+                    }
+                } else {
+                    false
+                }
 
-            // active 指向已不存在的订阅时清空，避免启动校验单点报「配置缺失」死循环
-            val activeUuid = storage.getString(StorageKeys.ACTIVE_PROFILE_UUID, "")
-            if (activeUuid.isNotEmpty() && importedDao.queryByUUID(activeUuid) == null) {
-                storage.putString(StorageKeys.ACTIVE_PROFILE_UUID, "")
-                storage.putString(StorageKeys.ACTIVE_PROFILE_NAME, "")
-            }
+                // active 指向已不存在的订阅时清空，避免启动校验单点报「配置缺失」死循环
+                val activeUuid = storage.getString(StorageKeys.ACTIVE_PROFILE_UUID, "")
+                if (activeUuid.isNotEmpty() && importedDao.queryByUUID(activeUuid) == null) {
+                    storage.putString(StorageKeys.ACTIVE_PROFILE_UUID, "")
+                    storage.putString(StorageKeys.ACTIVE_PROFILE_NAME, "")
+                }
 
-            // Wi-Fi 策略的组件位由重启后 MainActivity 按恢复出的 pref reconcile，此处不处理
-            bootStartManager.setEnabled(snapshot.bootStartEnabled)
+                // Wi-Fi 策略的组件位由重启后 MainActivity 按恢复出的 pref reconcile，此处不处理
+                bootStartManager.setEnabled(snapshot.bootStartEnabled)
+
+                BackupRestoreResult(
+                    tailscaleAuthKeyIncluded = tailscaleAuthKeyIncluded,
+                    tailscaleAuthKeyRestored = tailscaleAuthKeyRestored,
+                )
+            }
         }
-    }
 
     private fun ImportedEntity.toBackup() = BackupProfile(
         uuid, name, type.name, source, userAgent, ageSecretKey,

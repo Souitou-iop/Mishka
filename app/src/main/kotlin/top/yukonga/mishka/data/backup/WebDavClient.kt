@@ -27,12 +27,15 @@ import java.io.File
 import java.io.StringReader
 import java.net.URI
 import java.net.URLDecoder
-import java.util.UUID
 
 open class WebDavException(message: String) : Exception(message)
 
 class WebDavStaleException(val remoteVersion: Long) : WebDavException(
     "Remote snapshot is newer (version $remoteVersion); restore it before backing up",
+)
+
+class WebDavSnapshotConflictException(val version: Long) : WebDavException(
+    "Snapshot version $version was claimed by another client",
 )
 
 data class RemoteBackup(
@@ -98,7 +101,15 @@ class WebDavClient(
         buildClient().use { client ->
             client.ensureCollection(legacyDirUrl)
             client.ensureCollection(snapshotsDirUrl)
-            val response = client.davRequest(snapshotUrl(name), HttpMethod.Put, payload = file)
+            val response = client.davRequest(
+                snapshotUrl(name),
+                HttpMethod.Put,
+                payload = file,
+                headers = mapOf("If-None-Match" to "*"),
+            )
+            if (response.status.value == PRECONDITION_FAILED) {
+                throw WebDavSnapshotConflictException(parseSnapshotVersion(name) ?: -1L)
+            }
             if (!response.status.isSuccess()) {
                 throw WebDavException("PUT failed: HTTP ${response.status.value}")
             }
@@ -111,12 +122,25 @@ class WebDavClient(
         localVersion: Long,
         force: Boolean = false,
     ): RemoteBackup {
-        val remoteMax = listSnapshots().maxOfOrNull { it.version } ?: 0L
+        var remoteMax = listSnapshots().maxOfOrNull { it.version } ?: 0L
         if (!force && remoteMax > localVersion) throw WebDavStaleException(remoteMax)
-        val next = maxOf(localVersion, remoteMax) + 1L
-        val name = newSnapshotName(next)
-        uploadSnapshot(file, name)
-        return RemoteBackup(name, next, file.length())
+
+        repeat(MAX_VERSION_ATTEMPTS) {
+            val next = maxOf(localVersion, remoteMax) + 1L
+            val name = newSnapshotName(next)
+            try {
+                uploadSnapshot(file, name)
+                return RemoteBackup(name, next, file.length())
+            } catch (e: WebDavSnapshotConflictException) {
+                // The deterministic name plus If-None-Match makes this claim atomic. A
+                // non-forced upload must surface the concurrent writer as a stale remote;
+                // forced uploads advance past it and try the next version.
+                if (!force) throw WebDavStaleException(maxOf(e.version, remoteMax))
+                remoteMax = maxOf(remoteMax, e.version)
+                remoteMax = maxOf(remoteMax, listSnapshots().maxOfOrNull { it.version } ?: 0L)
+            }
+        }
+        throw WebDavException("Could not allocate a unique snapshot version")
     }
 
     suspend fun downloadSnapshot(name: String, target: File): Boolean {
@@ -274,12 +298,14 @@ class WebDavClient(
         const val LEGACY_FILE = "mishka-backup.zip"
         const val SNAPSHOTS_DIR = "snapshots"
         const val DEFAULT_RETENTION = 5
+        private const val PRECONDITION_FAILED = 412
+        private const val MAX_VERSION_ATTEMPTS = 4
         private val REDIRECT_CODES = setOf(301, 302, 307, 308)
         private const val MAX_REDIRECTS = 3
-        private val SNAPSHOT_PATTERN = Regex("^mishka-(\\d+)-[^/]+\\.mishka$")
+        private val SNAPSHOT_PATTERN = Regex("^mishka-(\\d+)(?:-[^/]+)?(?:\\.android)?\\.mishka$")
 
         fun newSnapshotName(version: Long): String =
-            "mishka-${version.toString().padStart(6, '0')}-${UUID.randomUUID().toString().take(8)}.android.mishka"
+            "mishka-${version.toString().padStart(6, '0')}.android.mishka"
 
         fun parseSnapshotVersion(name: String): Long? =
             SNAPSHOT_PATTERN.matchEntire(name)?.groupValues?.get(1)?.toLongOrNull()

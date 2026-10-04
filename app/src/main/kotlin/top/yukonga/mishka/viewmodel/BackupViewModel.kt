@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import top.yukonga.mishka.R
 import top.yukonga.mishka.data.backup.BackupManager
+import top.yukonga.mishka.data.backup.BackupRestoreResult
 import top.yukonga.mishka.data.backup.RemoteBackup
 import top.yukonga.mishka.data.backup.WebDavClient
 import top.yukonga.mishka.data.backup.WebDavStaleException
@@ -28,6 +29,7 @@ import kotlin.coroutines.resume
 data class BackupUiState(
     val isBusy: Boolean = false,
     val restoreCompleted: Boolean = false,
+    val restoreNeedsTailscaleReauth: Boolean = false,
     val remoteSnapshots: List<RemoteBackup> = emptyList(),
 )
 
@@ -86,12 +88,13 @@ class BackupViewModel(
         val client = client() ?: return@runBusy
         val snapshots = client.listSnapshots()
             .sortedWith(compareByDescending<RemoteBackup> { it.version }.thenByDescending { it.name })
+        var restoreResult: BackupRestoreResult? = null
         val restored = backupManager.withTransferFile { file ->
             val latest = snapshots.firstOrNull()
             when {
                 latest != null -> {
                     client.downloadSnapshot(latest.name, file)
-                    backupManager.restoreBackupFrom(file)
+                    restoreResult = backupManager.restoreBackupFrom(file)
                     storage.putString(
                         StorageKeys.WEBDAV_SYNC_VERSION,
                         maxOf(syncVersion(), latest.version).toString(),
@@ -99,7 +102,7 @@ class BackupViewModel(
                     true
                 }
                 client.downloadLegacy(file) -> {
-                    backupManager.restoreBackupFrom(file)
+                    restoreResult = backupManager.restoreBackupFrom(file)
                     true
                 }
                 else -> false
@@ -108,7 +111,12 @@ class BackupViewModel(
         if (!restored) {
             showToast(context.getString(R.string.backup_not_found))
         } else {
-            _uiState.update { it.copy(restoreCompleted = true) }
+            _uiState.update {
+                it.copy(
+                    restoreCompleted = true,
+                    restoreNeedsTailscaleReauth = restoreResult?.requiresTailscaleReauth == true,
+                )
+            }
         }
     }
 
@@ -132,8 +140,13 @@ class BackupViewModel(
     /** 本地导入：SAF 选中的 zip 文档。前置校验与 WebDAV 恢复一致。 */
     fun restoreFromDocument(uri: Uri) = runBusy {
         if (!ensureProxyStopped()) return@runBusy
-        backupManager.importFrom(uri)
-        _uiState.update { it.copy(restoreCompleted = true) }
+        val result = backupManager.importFrom(uri)
+        _uiState.update {
+            it.copy(
+                restoreCompleted = true,
+                restoreNeedsTailscaleReauth = result.requiresTailscaleReauth,
+            )
+        }
     }
 
     private suspend fun refreshRemoteSnapshots(client: WebDavClient) {
