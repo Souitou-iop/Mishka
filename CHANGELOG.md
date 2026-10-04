@@ -2,6 +2,23 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.6 — 2026-10-04
+
+- `backup: make WebDAV snapshot claiming conflict-safe`
+  - 新版快照使用确定性版本文件名与 `If-None-Match` 条件创建，避免多个客户端同时上传时生成同一版本。
+  - 保留旧版随机快照文件名的读取兼容性；强制上传在冲突后自动推进到下一个版本。
+- `backup: report partial restore state`
+  - 恢复结果明确返回 Tailscale auth key 是否包含、是否写入 Keystore，以及是否需要重新认证。
+  - GUI 显示重新认证提示，CLI 恢复响应暴露对应字段。
+- `docs: highlight fork-specific Tailscale and ADB CLI features`
+  - README 明确说明本 fork 的 Tailscale Tailnet 出站和受保护 ADB CLI 控制面。
+  - 同步 WebDAV 版本快照与 Tailscale 备份恢复说明。
+
+### 验证
+
+- `git diff --check`、资源 XML 检查与 acceptance Shell 语法检查通过。
+- Gradle 测试受当前执行环境无法连接 Gradle 分发地址影响，未能在本地完成。
+
 ## 1.1.5 — 2026-10-03
 
 - `widget: rebuild into stats, control and overview variants`

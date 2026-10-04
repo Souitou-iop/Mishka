@@ -15,7 +15,7 @@
 
 ## 简介
 
-Mishka 是一个使用 [mihomo](https://github.com/MetaCubeX/mihomo) 内核的 Android 代理客户端，界面基于 [miuix](https://github.com/miuix-kotlin-multiplatform/miuix) 和 Jetpack Compose，数据层使用 Room、Ktor 与 Koin。内核通过 JNI 与独立进程两条路径接入，支持 VPN、ROOT TUN 与 ROOT TPROXY 三种运行模式。
+这是 [`Souitou-iop/Mishka`](https://github.com/Souitou-iop/Mishka) 维护的 Mishka fork，重点扩展了 **Tailscale Tailnet 出站**和**受保护的 ADB CLI 控制面**，同时保留完整的 Android 代理能力。Mishka 使用 [mihomo](https://github.com/MetaCubeX/mihomo) 内核，界面基于 [miuix](https://github.com/miuix-kotlin-multiplatform/miuix) 和 Jetpack Compose，数据层使用 Room、Ktor 与 Koin。内核通过 JNI 与独立进程两条路径接入，支持 VPN、ROOT TUN 与 ROOT TPROXY 三种运行模式。
 
 应用版本不在 README 中重复维护：构建时从 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 生成。
 
@@ -36,7 +36,7 @@ cd Mishka
 git submodule update --init --recursive
 ```
 
-> TODO（维护者确认）：当前 checkout 的 `origin` 指向 `YuKongA/Mishka`、`fork` 指向 `Souitou-iop/Mishka`。如 PR 目标或默认 remote 约定不同，请在发布前同步修改本节；本文不把上游 PR 流程当作已确认事实。
+当前 checkout 的 `origin` 指向本 fork；上游项目为 [`YuKongA/Mishka`](https://github.com/YuKongA/Mishka)。
 
 ## 功能
 
@@ -62,6 +62,7 @@ git submodule update --init --recursive
 
 ### Tailscale
 
+- **Fork 特色**：将 Tailscale 作为 mihomo 出站接入代理链路，并提供 Tailnet 设备状态查看。
 - 支持将 Tailscale 作为 mihomo 出站，生成名为 `Mishka Tailscale` 的代理，并为 Tailnet IPv4/IPv6 网段插入规则。
 - 设置页支持 Auth key、Control server URL、设备名、Exit node、接受路由、UDP、临时设备与 Exit node 局域网访问选项。
 - 代理运行时可查看当前设备与 Tailnet 设备状态，包括在线状态、地址和最近活动时间。
@@ -70,12 +71,14 @@ git submodule update --init --recursive
 
 - 支持本地文件与 WebDAV 备份/恢复，归档包含订阅、override、必要偏好与本地配置目录。
 - 恢复前要求停止代理；恢复会覆盖本地数据，并在完成后重启应用以重新加载内存状态。
-- WebDAV 使用固定文件名覆盖式备份；凭据不作为普通偏好导出。
+- WebDAV 新版使用不可变的版本快照，支持并发冲突保护、版本列表、保留策略和显式导出原版固定备份；凭据不作为普通偏好导出。
 - 深浅色、跟随系统、Monet 动态取色、宽屏 NavigationRail、Quick Settings 磁贴、开机自启与 Wi-Fi 自动切换。
 
 ### ADB CLI
 
-Mishka 通过仅允许 ADB shell 调用的 ContentProvider 暴露结构化 CLI，宿主机可使用 [`scripts/mishka-cli`](scripts/mishka-cli) 控制代理、订阅、override、设置、诊断与运行中的 mihomo。它不新增 LAN 监听端口，详见 [`docs/cli.md`](docs/cli.md)。
+- **Fork 特色**：通过仅允许 ADB shell、Root、System 或应用自身 UID 调用的 ContentProvider 暴露结构化控制面。
+- 宿主机可使用 [`scripts/mishka-cli`](scripts/mishka-cli) 控制代理、订阅、override、设置、备份、诊断与运行中的 mihomo。
+- CLI 不新增 LAN 监听端口，代理启动仍复用 GUI 的权限检查、VPN 授权、ProfileProcessor 和服务状态机，详见 [`docs/cli.md`](docs/cli.md)。
 
 ## Tailscale 配置
 
