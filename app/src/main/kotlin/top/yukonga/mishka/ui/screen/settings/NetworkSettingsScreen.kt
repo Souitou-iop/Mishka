@@ -55,6 +55,7 @@ import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Back
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.utils.overScrollVertical
 import top.yukonga.miuix.kmp.utils.scrollEndHaptic
@@ -66,6 +67,7 @@ fun NetworkSettingsScreen(
     onBack: () -> Unit = {},
 ) {
     val uiState by viewModel.state.collectAsStateWithLifecycle()
+    val domesticDirect by viewModel.domesticDirect.collectAsStateWithLifecycle()
     val scrollBehavior = MiuixScrollBehavior()
     val resetDoneMsg = stringResource(R.string.dialog_reset_done)
 
@@ -247,6 +249,14 @@ fun NetworkSettingsScreen(
                         LogLevelPreference(
                             value = uiState.logLevel,
                             onValueChange = { v -> updateTop { it.copy(logLevel = v) } },
+                        )
+                    },
+                    CardItem("domesticDirect") {
+                        SwitchPreference(
+                            title = stringResource(R.string.network_domestic_direct),
+                            summary = stringResource(R.string.network_domestic_direct_summary),
+                            checked = domesticDirect,
+                            onCheckedChange = { viewModel.setDomesticDirect(it) },
                         )
                     },
                 ),

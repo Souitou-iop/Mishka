@@ -421,6 +421,8 @@
     <string name="network_external_controller">外部控制器</string>
     <string name="network_bind_address">绑定地址</string>
     <string name="network_log_level">日志等级</string>
+    <string name="network_domestic_direct">国内流量直连</string>
+    <string name="network_domestic_direct_summary">规则模式下国内站点直连、不经代理。全局与直连模式不受此开关影响。修改后需重启代理生效。</string>
     <string name="network_dns">DNS</string>
     <string name="network_dns_enable">启用 DNS</string>
     <string name="network_dns_listen">监听地址</string>

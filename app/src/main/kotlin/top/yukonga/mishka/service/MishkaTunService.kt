@@ -356,6 +356,14 @@ class MishkaTunService : VpnService() {
 
             // 3. 启动 mihomo 核心
             // age 加密订阅：config 加密落盘，密钥与覆写选择来自同一份 imported DB 快照。
+            // WIFI_POLICY_RUNTIME_MODE 优先于用户持久 mode：Wi-Fi 策略可在不改持久设置的前提下切模式，
+            // 判断是否注入国内直连规则必须用实际生效的那个
+            val domesticDirect = RuntimeOverrideBuilder.shouldInjectDomesticDirect(
+                domesticDirectEnabled = storage.getString(StorageKeys.DOMESTIC_DIRECT, "true") == "true",
+                userOverride = userOverride,
+                wifiRuntimeMode = storage.getString(StorageKeys.WIFI_POLICY_RUNTIME_MODE, "")
+                    .takeIf { it == "rule" || it == "global" || it == "direct" },
+            )
             val success = runner.start(
                 subscriptionId = subscriptionId,
                 useRoot = false,
@@ -365,6 +373,7 @@ class MishkaTunService : VpnService() {
                 ageSecretKey = transformPlan.ageSecretKey,
                 transformPath = transformPlan.transformPath,
                 preferTransformMixedPort = transformPlan.transformPath != null && viaProxy && userOverride.mixedPort == null,
+                domesticDirect = domesticDirect,
             )
             if (!success) {
                 val errorMsg = runner.errorMessage.ifBlank { getString(R.string.error_start_failed) }

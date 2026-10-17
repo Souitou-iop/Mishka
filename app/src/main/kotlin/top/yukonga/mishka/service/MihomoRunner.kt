@@ -77,6 +77,7 @@ class MihomoRunner(private val context: Context) {
         ageSecretKey: String = "",
         transformPath: String? = null,
         preferTransformMixedPort: Boolean = false,
+        domesticDirect: Boolean = false,
     ): Boolean = withContext(Dispatchers.IO) {
         if (isRunning) {
             Log.w(TAG, "mihomo already running")
@@ -124,6 +125,11 @@ class MihomoRunner(private val context: Context) {
                 add("--ext-ctl"); add(externalController)
                 if (ageSecretKey.isNotEmpty()) {
                     add("--age-secret-key"); add(ageSecretKey)
+                }
+                // 国内直连规则由内核在解析阶段前插到订阅规则之前。放在内核侧而不是 JSON override：
+                // RawConfig.Rule 是整体替换语义，从 Kotlin 写会覆盖掉订阅自带规则
+                if (domesticDirect) {
+                    add("--domestic-direct")
                 }
             }.toTypedArray()
             val logFile = File(workDir, "mihomo.log")

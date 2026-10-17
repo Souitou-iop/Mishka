@@ -129,6 +129,24 @@ object RuntimeOverrideBuilder {
     }
 
     /**
+     * 本次运行是否注入国内直连规则。注入本身在 mihomo 侧（`--domestic-direct`）执行：
+     * RawConfig.Rule 是整体替换语义，在这里写 `rules` 会把订阅自带规则全部丢掉，
+     * 必须在内核解析阶段对原始规则做前插。
+     *
+     * 只有 rule 模式才注入：global 全部走选中出口、direct 全部直连，两者都不存在分流问题。
+     * 这两个模式同时就是用户关掉该行为的开关。
+     */
+    internal fun shouldInjectDomesticDirect(
+        domesticDirectEnabled: Boolean,
+        userOverride: ConfigurationOverride,
+        wifiRuntimeMode: String?,
+    ): Boolean {
+        if (!domesticDirectEnabled) return false
+        return (wifiRuntimeMode ?: userOverride.mode ?: "rule").equals("rule", ignoreCase = true)
+    }
+
+
+    /**
      * mixed-port 决策（见 [buildAndWriteForRun] 文档）：用户显式值 > 订阅 yaml 自带（返回 null 不注入）
      * > 通过代理更新订阅的兜底默认值 > 不注入。
      */

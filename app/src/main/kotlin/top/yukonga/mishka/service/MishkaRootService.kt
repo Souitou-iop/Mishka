@@ -414,6 +414,13 @@ class MishkaRootService : Service() {
 
             // 5. 以 root 启动 mihomo
             // age 加密订阅：runtime/ 保持密文，密钥与覆写选择来自同一份 imported DB 快照。
+            // 与 VPN 路径同源：WIFI_POLICY_RUNTIME_MODE 可覆盖持久 mode，按实际生效者判断
+            val domesticDirect = RuntimeOverrideBuilder.shouldInjectDomesticDirect(
+                domesticDirectEnabled = storage.getString(StorageKeys.DOMESTIC_DIRECT, "true") == "true",
+                userOverride = userOverride,
+                wifiRuntimeMode = storage.getString(StorageKeys.WIFI_POLICY_RUNTIME_MODE, "")
+                    .takeIf { it == "rule" || it == "global" || it == "direct" },
+            )
             val success = runner.start(
                 subscriptionId = subscriptionId,
                 useRoot = true,
@@ -423,6 +430,7 @@ class MishkaRootService : Service() {
                 ageSecretKey = transformPlan.ageSecretKey,
                 transformPath = transformPlan.transformPath,
                 preferTransformMixedPort = transformPlan.transformPath != null && viaProxy && userOverride.mixedPort == null,
+                domesticDirect = domesticDirect,
             )
             if (!success) {
                 val errorMsg = runner.errorMessage.ifBlank { getString(R.string.error_start_failed) }

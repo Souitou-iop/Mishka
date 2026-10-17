@@ -26,6 +26,12 @@ data class ConfigurationOverride(
     @SerialName("bind-address") val bindAddress: String? = null,
     @SerialName("log-level") val logLevel: String? = null,
     @SerialName("mode") val mode: String? = null,
+    /**
+     * 顶层规则。非 null 时**整体替换**订阅 `rules`（mihomo 的 RawConfig 字段语义），
+     * 因此国内直连规则不走这里，由 [top.yukonga.mishka.service.RuntimeOverrideBuilder]
+     * 在 rule 模式下前插，避免覆盖订阅自带规则。
+     */
+    @SerialName("rules") val rules: List<String>? = null,
     @SerialName("external-controller") val externalController: String? = null,
     @SerialName("secret") val secret: String? = null,
     @SerialName("unified-delay") val unifiedDelay: Boolean? = null,

@@ -44,7 +44,7 @@ val viewModelModule = module {
         )
     }
     single { AppProxyViewModel(get(), get(), get()) }
-    single { NetworkSettingsViewModel(get()) }
+    single { NetworkSettingsViewModel(get(), get()) }
     single { MetaSettingsViewModel(get()) }
     single { ExternalControlViewModel(get()) }
     single { LogViewModel() }

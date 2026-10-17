@@ -33,6 +33,11 @@ object StorageKeys {
     // 更新 active 订阅后自动重启代理，默认开；理由见 ProxyServiceController.restartAfterProfileUpdate
     const val RESTART_AFTER_PROFILE_UPDATE = "restart_after_profile_update"
 
+    // rule 模式下自动把国内直连规则前插到订阅规则之前，默认开。
+    // 仅在 rule 模式生效：global / direct 本身就没有分流问题，两者即用户的退出机制。
+    // 规则由内核侧 --domestic-direct 注入，Kotlin 侧只决定是否传该 flag
+    const val DOMESTIC_DIRECT = "domestic_direct"
+
     // Wi-Fi 自动切换
     const val WIFI_POLICY_ENABLED = "wifi_policy_enabled"
     const val WIFI_POLICY_SSIDS = "wifi_policy_ssids"

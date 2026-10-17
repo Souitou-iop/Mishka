@@ -53,18 +53,23 @@ func runMihomo() int {
 		transformPath      string
 		preferTransformPort bool
 		ageSecretKey       string
+		domesticDirect     bool
 	)
 	fs.StringVar(&homeDir, "d", "", "set configuration directory")
 	fs.StringVar(&configFile, "f", "", "specify configuration file")
 	fs.StringVar(&overrideJSON, "override-json", "", "path to a JSON file whose fields override the parsed RawConfig")
 	fs.StringVar(&transformPath, "transform", "", "path to a JSON subscription transform applied before parsing")
 	fs.BoolVar(&preferTransformPort, "prefer-transform-mixed-port", false, "let the transformed configuration's mixed-port override the runtime fallback")
+	// 必须在这里注册：本 FlagSet 是 ExitOnError，未注册的 flag 会让进程直接退出，
+	// 表现是代理起不来而日志只有一行 usage
+	fs.BoolVar(&domesticDirect, "domestic-direct", false, "prepend domestic-direct rules to the subscription rules")
 	fs.StringVar(&secret, "secret", "", "override RESTful API secret")
 	fs.StringVar(&externalController, "ext-ctl", "", "override external controller address")
 	fs.StringVar(&ageSecretKey, "age-secret-key", "", "age secret key to decrypt age-armor encrypted configuration")
 	if err := fs.Parse(os.Args[1:]); err != nil {
 		return 2
 	}
+	config.DomesticDirect = domesticDirect
 
 	// 任何意外走系统 resolver 的代码路径立刻自爆，方便定位（mihomo 应当全程用自己的 DNS 栈）。
 	net.DefaultResolver.PreferGo = true
