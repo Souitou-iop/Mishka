@@ -2,6 +2,25 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.7 — 2026-10-18
+
+- `widget: remove home-screen widgets`
+  - 移除全部三款桌面小组件（流量统计 / 代理控制 / 代理概览）及其 Application 级刷新管道、本地累计流量存储（`TrafficStatisticsStore`）与设置页「重置流量统计」入口：源码、测试、布局、drawable、info xml、colors、Manifest receiver 与四语言字符串一并删除。
+  - 累计流量计数器只为小组件存在，随之移除；订阅页与主页的流量口径不受影响。
+- `proxy: add domestic direct routing for rule mode`
+  - 规则模式下自动把内置直连规则（GEOSITE private/cn/geolocation-cn、GEOIP private/CN → DIRECT，GEOSITE category-ads-all → REJECT）前插到订阅规则之前，订阅缺国内分流规则时国内流量不再经代理；前插是因为订阅规则以 MATCH 结尾，追加不生效。
+  - 注入由内核新 flag `--domestic-direct` 执行（mihomo submodule 前进到 `fdc88306`）：JSON override 的 `rules` 是整体替换语义，走那条路会丢掉订阅自带规则。规则表为静态，不依赖 Parse 阶段的 geodata 探测。
+  - 仅 rule 模式生效；global / direct 本身就是用户的退出机制。设置 → 网络新增「国内流量直连」开关（默认开），可彻底关闭注入。Wi-Fi 策略的 runtime mode 优先于持久 mode 参与判定。
+  - 真机验证：7 条规则加载，40 个国内域名命中 39（仅 doh.pub 未中），境外 0 误判。
+- `docs: add postmortem for tailscale duplicate node key incident`
+  - 复盘 v1.1.0 时期备份把 `imported/{uuid}/tailscale/` 节点身份打进归档、三台设备恢复同一快照后共享节点身份（Duplicate node key）的完整根因链。
+
+### 验证
+
+- `:app:compileDebugKotlin`、`:app:testDebugUnitTest`、`:app:assembleDebug` 本地通过。
+- 内核侧 `go test -tags mishka ./config/` 5 项单测通过；Android arm64 交叉编译通过。
+- 真机（Android 16 / HyperOS）完成分流命中与 CDN A/B 实测：Apple、Steam、微软国内 CDN 均已被 `GEOSITE,cn` + `GEOIP,CN` 覆盖，无需外部规则库。
+
 ## 1.1.6 — 2026-10-04
 
 - `backup: make WebDAV snapshot claiming conflict-safe`
