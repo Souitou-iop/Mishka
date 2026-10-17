@@ -144,7 +144,6 @@ class HomeViewModel(
     private val latencyTester: RuleLatencyTester,
     private val getActiveSubscriptionId: () -> String? = { null },
     private val activeSubscription: StateFlow<Subscription?> = MutableStateFlow(null).asStateFlow(),
-    private val onResetTrafficStatistics: () -> Unit = {},
     private val onLiveProviderInfo: (subscriptionId: String?, info: SubscriptionInfo?) -> Unit = { _, _ -> },
 ) : ViewModel() {
 
@@ -695,8 +694,6 @@ class HomeViewModel(
      * 判定（Stopped/Error 下什么都不做，下次启动自然读到新值），别退回 `restart()`——
      * 那会把用户没打算启动的代理拉起来。
      */
-    fun resetTrafficStatistics() = onResetTrafficStatistics()
-
     fun switchMode(mode: String) {
         if (serviceController.switchProxyMode(mode, overrideStore, getActiveSubscriptionId())) {
             _uiState.value = _uiState.value.copy(mode = mode)
