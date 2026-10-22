@@ -2,6 +2,22 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.8 — 2026-10-22
+
+- `build: bump mihomo kernel to Alpha 3f27ef39`
+  - 内核 rebase 到上游 Alpha `3f27ef39`（2026-10-21），跨 27 个上游提交；8 个 fork 补丁全部保留。
+  - 带入 `crypto/tls` 的 CVE-2026-97031 修复、TUN `dns-mode` 选项、sudoku 传输层重构、mieru 升级，以及 dialer-proxy 环路检测由 O(n²) 收敛。
+  - 另 cherry-pick 上游 `bba95fb1`（Android 系统 DNS resolver 并发同步），这是本轮唯一触及 mishka 补丁路径的上游改动。
+  - **上游默认 TUN 栈由 `gvisor` 改为 `mips`**：Mishka 从不显式设置 `tun.stack`，因此 VPN 模式的数据面实现随之切换。arm64 Android 13 模拟器实测 fd 路径流量正常——活跃连接源地址为 TUN 网段 `198.18.0.1`，Mips 与 System 两种栈下均如此，内核日志无 `network unreachable` 与 TUN 初始化错误。若真机遇到特定应用流量异常，可先在首页把 TUN Stack 切回 gVisor 做对照。
+  - `mishka_core` 依赖随内核对齐（sing-tun 0.4.24→0.4.28、`metacubex/tls` 0.1.8→0.1.9、utls 1.8.7→1.8.8、mipstack 与 sing-wireguard 同步）。
+  - 注：上游 `YuKongA/mihomo` 的 `Mishka` 分支做过强制 rebase，但漏掉了 `--domestic-direct`、tailscale status API、tailscale NoState 重登录三个补丁，因此本版未跟随该分支，而是在 Alpha 上自行 rebase。
+
+### 验证
+
+- `:app:compileDebugKotlin`、`:app:testDebugUnitTest`、`:app:assembleDebug` 本地通过。
+- 内核 `go test -tags mishka ./config/` 与 `mishka_core` 的 `go test ./...` 通过；`TestPath` 的失败在纯净上游 Alpha 上同样复现，属 macOS 路径语义环境差异。
+- arm64-v8a / Android 13 模拟器端到端：内核启动、GeoIP 提取（111224 条 cn 记录）、`--domestic-direct` 规则注入、fake-ip 解析、VPN fd 流量均正常。
+
 ## 1.1.7 — 2026-10-18
 
 - `widget: remove home-screen widgets`
