@@ -2,6 +2,26 @@
 
 本文件只记录当前仓库历史中可以由提交或现有代码核实的变更。应用版本仍以构建生成的 `BuildConfig.VERSION_NAME` 与 `BuildConfig.VERSION_CODE` 为准。
 
+## 1.1.9 — 2026-10-24
+
+- `merge origin/main`（30 个上游提交）+ 内核跟进上游 `Mishka` 分支
+  - **VPN 启动对齐 CMFA 架构**：`MihomoRunner` 新增 `--vpn-gateway` / `--vpn-http-fd` / `--vpn-platform-socket` / `--vpn-ready-file`；VpnService fd 经 `VpnPlatformBridge`（abstract socket）与内核交互，TUN 网关迁到 `172.19.0.1/30`（`RuntimeOverrideBuilder.VPN_GATEWAY`），系统 HTTP 代理改由父进程预绑定 listener fd 传入，不受订阅端口与 LAN ACL 影响；启动就绪以 ready file + `TunListenerReady()` 双重判定，实例间经 `VpnRuntimeHandoff` 交接。
+  - **内核侧三个 Android 修复**：fd 模式 sing-tun 持有的是 `F_DUPFD_CLOEXEC` 副本，listener 重载不再关闭原始 fd（`5581d693`）；fd 模式净化清空 `Interface` / `RoutingMark` / TLS controller 并剔除订阅自带的 tun/tproxy/redir 入站；`AppendSystemDNS` 跨隧道模式生效并去重（`5f0805aa`）；DNS 解析优先尝试 IP 字面量，IPv6 nameserver 不再被路由进 IPv4 解析（`65180d8f`）。
+  - **ROOT DNS 独立控制面**：新增 `--root-dns` 透明 DNS（UDP/TCP 53 + 策略路由，`RootDnsApplier`），取代旧的 `dns.listen=0.0.0.0:1053` 重定向；ROOT TUN 的 IPv6 DNS 劫持随 IPv6 开关注入 `[::]:53`。真机（OnePlus PHK110 / KernelSU）实测：mihomo 自建 TUN + auto-route + Mips 栈，`Transparent DNS listening on UDP and TCP port 53`，11 条 mishka iptables 链，TUN 源流量命中 `GeoSite(cn) -> DIRECT`，重启沙箱重建后恢复正常。
+  - **代理页与订阅**：分组测速改用内核原生 group delay 端点（大幅提速）；分组卡片展开动效与长列表滚动优化；分组图标显示开关；provider userinfo 提取与 cache.db 落盘；系统代理端口与排除项按订阅解析；图标加载失败在代理就绪后自动恢复。
+  - **外部自动化**：四个受 `external_control_allowed` 开关保护的导出 intent（启/停/切换/重启）；过渡态直接忽略，`applyExternalAction` 同样经过备份恢复维护窗口门禁。
+  - **构建**：`buildSrc` 迁移为 `build-logic` 复合构建（`mishka.build-logic` 预编译插件）；Gradle 9.8.2；kotlinx-serialization 1.12.0；CI go test 加 `-tags mishka`（上游新单测断言 mishka 白名单行为，无该 tag 必失败）；内核单测里 VPN listener 测试改绑 `127.0.0.1`（任取的 127.x 在 macOS 上不可绑，Linux 全 127/8 可绑，ACL 语义不变）。本 fork 维持 arm64-v8a 单架构与 `KEYSTORE_*` 签名体系。
+  - **移除**：`ServiceStartStateMachine`（被上游 command channel + generation 设计取代）及其单测。
+
+### 验证
+
+- `:app:compileDebugKotlin`、`:app:testDebugUnitTest`、`:app:assembleDebug`、`:app:assembleRelease` 本地通过；mishka_core `go test -tags mishka ./...` 通过。
+- 内核在上游 `origin/Mishka`（`5581d693`）上保留全部 fork 补丁重放，无冲突。
+- 真机（OnePlus PHK110 / Android 16 / KernelSU，以 `.tailscale` 变体并存安装、不覆盖正式包）：
+  - VPN 模式：TUN 网关 `172.19.0.1/30`，真实应用流量经 fd 进入内核（源地址 `172.19.0.1` 的 weixin / ntp 连接），`GeoSite(cn) -> DIRECT` 命中；代理重启后流量恢复。
+  - ROOT TUN 模式：自建 TUN + auto-route + `--root-dns` 透明 DNS + iptables 链生效；ROOT 重启（pid 8019 → 9918）沙箱重建正常；VPN ↔ ROOT 双向切换正常。
+  - 全程配置为本地全 DIRECT 测试订阅，无外部流量经过测试设备。
+
 ## 1.1.8 — 2026-10-22
 
 - `build: bump mihomo kernel to Alpha 3f27ef39`
