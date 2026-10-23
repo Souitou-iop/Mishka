@@ -8,14 +8,15 @@ import top.yukonga.mishka.viewmodel.BackupViewModel
 import top.yukonga.mishka.viewmodel.ConnectionViewModel
 import top.yukonga.mishka.viewmodel.DiagnosticsViewModel
 import top.yukonga.mishka.viewmodel.DnsQueryViewModel
+import top.yukonga.mishka.viewmodel.AutomationViewModel
 import top.yukonga.mishka.viewmodel.ExternalControlViewModel
 import top.yukonga.mishka.viewmodel.HomeViewModel
 import top.yukonga.mishka.viewmodel.LogViewModel
 import top.yukonga.mishka.viewmodel.MetaSettingsViewModel
 import top.yukonga.mishka.viewmodel.NetworkSettingsViewModel
+import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.ProviderViewModel
 import top.yukonga.mishka.viewmodel.ProxyViewModel
-import top.yukonga.mishka.viewmodel.OverrideProfileViewModel
 import top.yukonga.mishka.viewmodel.SubscriptionViewModel
 
 /**
@@ -29,6 +30,7 @@ val viewModelModule = module {
             overrideStore = get(),
             connectionManager = get(),
             latencyTester = get(),
+            systemInfo = get(),
             getActiveSubscriptionId = { get<SubscriptionRepository>().getActive()?.id },
             activeSubscription = get<SubscriptionRepository>().activeSubscription,
             onLiveProviderInfo = get<SubscriptionRepository>()::setLiveProviderInfo,
@@ -47,6 +49,7 @@ val viewModelModule = module {
     single { NetworkSettingsViewModel(get(), get()) }
     single { MetaSettingsViewModel(get()) }
     single { ExternalControlViewModel(get()) }
+    single { AutomationViewModel(get()) }
     single { LogViewModel() }
     single { ProviderViewModel() }
     single { ConnectionViewModel() }

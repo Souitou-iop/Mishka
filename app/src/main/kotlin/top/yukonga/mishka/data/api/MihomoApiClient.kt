@@ -6,6 +6,7 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -16,9 +17,13 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLParameter
+import io.ktor.http.encodeURLPath
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import top.yukonga.mishka.domain.model.ConnectionsResponse
 import top.yukonga.mishka.domain.model.DelayResult
@@ -85,7 +90,7 @@ class MihomoApiClient(
         client.get("$baseUrl/group").body()
 
     suspend fun selectProxy(group: String, name: String) {
-        val response: HttpResponse = client.put("$baseUrl/proxies/$group") {
+        val response: HttpResponse = client.put("$baseUrl/proxies/${pathSegment(group)}") {
             contentType(ContentType.Application.Json)
             setBody(mapOf("name" to name))
         }
@@ -97,12 +102,36 @@ class MihomoApiClient(
      * Selector 组无固定态，mihomo 对其返回 400。
      */
     suspend fun unfixProxy(group: String) {
-        val response: HttpResponse = client.delete("$baseUrl/proxies/$group")
+        val response: HttpResponse = client.delete("$baseUrl/proxies/${pathSegment(group)}")
         ensureSuccess(response, "proxy group '$group'")
     }
 
+    suspend fun getGroupDelay(
+        name: String,
+        testUrl: String = "http://www.gstatic.com/generate_204",
+        timeout: Int = 5000,
+    ): Map<String, Int> {
+        val response: HttpResponse = client.get("$baseUrl/group/${pathSegment(name)}/delay") {
+            url {
+                parameters.append("url", testUrl)
+                parameters.append("timeout", timeout.toString())
+            }
+            timeout {
+                requestTimeoutMillis = maxOf(30_000L, timeout * 2L + 10_000L)
+            }
+        }
+        return if (response.status == HttpStatusCode.OK) {
+            response.body()
+        } else if (response.status == HttpStatusCode.GatewayTimeout || response.status == HttpStatusCode.ServiceUnavailable) {
+            emptyMap()
+        } else {
+            ensureSuccess(response, "group delay '$name'")
+            emptyMap()
+        }
+    }
+
     suspend fun getProxyDelay(name: String, testUrl: String = "http://www.gstatic.com/generate_204", timeout: Int = 5000): DelayResult =
-        client.get("$baseUrl/proxies/$name/delay") {
+        client.get("$baseUrl/proxies/${pathSegment(name)}/delay") {
             url {
                 parameters.append("url", testUrl)
                 parameters.append("timeout", timeout.toString())
@@ -119,7 +148,7 @@ class MihomoApiClient(
         testUrl: String = "http://www.gstatic.com/generate_204",
         timeout: Int = 5000,
     ): DelayResult =
-        client.get("$baseUrl/providers/proxies/$provider/$name/healthcheck") {
+        client.get("$baseUrl/providers/proxies/${pathSegment(provider)}/${pathSegment(name)}/healthcheck") {
             url {
                 parameters.append("url", testUrl)
                 parameters.append("timeout", timeout.toString())
@@ -139,7 +168,7 @@ class MihomoApiClient(
     }
 
     suspend fun closeConnection(id: String) {
-        client.delete("$baseUrl/connections/$id")
+        client.delete("$baseUrl/connections/${pathSegment(id)}")
     }
 
     // === Provider ===
@@ -154,7 +183,7 @@ class MihomoApiClient(
      * 让 UI 误以为刷新成功。
      */
     suspend fun updateProvider(name: String) {
-        val response: HttpResponse = client.put("$baseUrl/providers/proxies/$name")
+        val response: HttpResponse = client.put("$baseUrl/providers/proxies/${pathSegment(name)}")
         ensureSuccess(response, "proxy provider '$name'")
     }
 
@@ -167,7 +196,7 @@ class MihomoApiClient(
      * 触发 rule provider 重新拉取。语义同 [updateProvider]，但路由到 /providers/rules/。
      */
     suspend fun updateRuleProvider(name: String) {
-        val response: HttpResponse = client.put("$baseUrl/providers/rules/$name")
+        val response: HttpResponse = client.put("$baseUrl/providers/rules/${pathSegment(name)}")
         ensureSuccess(response, "rule provider '$name'")
     }
 
@@ -180,6 +209,14 @@ class MihomoApiClient(
                 parameters.append("type", type)
             }
         }.body()
+
+    suspend fun updateSystemDns(servers: List<String>) {
+        val response: HttpResponse = client.put("$baseUrl/dns/system") {
+            contentType(ContentType.Application.Json)
+            setBody(servers)
+        }
+        ensureSuccess(response, "system DNS")
+    }
 
     // === 缓存 ===
 
@@ -198,12 +235,22 @@ class MihomoApiClient(
     }
 
     /**
+     * 路径段只编码一次，并且必须编码 `/`。
+     * chi 的 `/{name}` 只匹配一段；斜杠不编码时请求被切开，中间件用第一段查找，
+     * 回 404 Resource not found。内核 getEscapeParam 会再 PathUnescape 一次，
+     * 预编码或编两次都会对不上注册名。
+     */
+    private fun pathSegment(raw: String): String = raw.encodeURLPath(encodeSlash = true)
+
+    /**
      * mihomo 返回的 JSON 错误体格式：`{"message": "..."}`。非 2xx 时抛带上下文的异常，
      * 让 runCatching 能区分真实成功 vs mihomo 返回的业务错误（典型 503 / 404）。
      */
     private suspend fun ensureSuccess(response: HttpResponse, context: String) {
         if (response.status.isSuccess()) return
-        val detail = runCatching { response.bodyAsText() }.getOrNull().orEmpty()
+        val detail = runCatching { response.bodyAsText() }
+            .onFailure { if (it is CancellationException) throw it }
+            .getOrNull().orEmpty()
         val summary = extractErrorMessage(detail) ?: response.status.description
         throw MihomoApiException("$context: ${response.status.value} $summary")
     }
@@ -219,11 +266,16 @@ class MihomoApiClient(
         }.getOrNull()
     }
 
+    /**
+     * `secret` 只能走 query——mihomo 的 WS 分支只认 `?token=`，没有 REST 那样的 `Authorization` 头可回落。
+     * 必须百分号编码：`&` 会被当 query 分隔符截断、`#` 之后整段不发送、`+` 解码成空格，
+     * 任一都让服务端鉴权失败回 401，而 WS 握手失败是静默重连（内存/网速一直停在占位值）。
+     */
     fun getWebSocketUrl(path: String): String {
         val wsBase = baseUrl.replace("http://", "ws://").replace("https://", "wss://")
         return if (secret.isNotEmpty()) {
             val separator = if ("?" in path) "&" else "?"
-            "$wsBase$path${separator}token=$secret"
+            "$wsBase$path${separator}token=${secret.encodeURLParameter()}"
         } else {
             "$wsBase$path"
         }

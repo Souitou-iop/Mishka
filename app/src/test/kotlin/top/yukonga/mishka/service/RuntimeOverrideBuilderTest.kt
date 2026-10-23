@@ -122,30 +122,30 @@ class RuntimeOverrideBuilderTest {
     // === DNS ===
 
     @Test
-    fun `root tproxy forces dns listener on the redirect port`() {
-        val dns = RuntimeOverrideBuilder.buildDnsOverride(TunMode.RootTproxy, null)
-        assertNotNull(dns)
-        assertEquals(true, dns!!.enable)
-        assertEquals("0.0.0.0:${RootTproxyApplier.DNS_PORT}", dns.listen)
-    }
-
-    @Test
-    fun `root tproxy preserves user dns fields while overriding listen`() {
-        val userDns = DnsOverride(enable = false, enhancedMode = "fake-ip", nameserver = listOf("https://doh.pub/dns-query"))
-        val dns = RuntimeOverrideBuilder.buildDnsOverride(TunMode.RootTproxy, userDns)!!
-        assertEquals(true, dns.enable)
-        assertEquals("0.0.0.0:${RootTproxyApplier.DNS_PORT}", dns.listen)
-        // 用户的解析策略必须保留，只有监听地址被接管
-        assertEquals("fake-ip", dns.enhancedMode)
-        assertEquals(listOf("https://doh.pub/dns-query"), dns.nameserver)
-    }
-
-    @Test
-    fun `non tproxy modes leave dns untouched`() {
+    fun `vpn dns override passes user dns through unchanged`() {
         val userDns = DnsOverride(enable = true, listen = "127.0.0.1:5353")
-        assertEquals(userDns, RuntimeOverrideBuilder.buildDnsOverride(TunMode.Vpn, userDns))
-        assertEquals(userDns, RuntimeOverrideBuilder.buildDnsOverride(TunMode.RootTun, userDns))
-        assertNull(RuntimeOverrideBuilder.buildDnsOverride(TunMode.Vpn, null))
+        assertEquals(userDns, RuntimeOverrideBuilder.buildDnsOverride(TunMode.Vpn, userDns, ipv6Enabled = true))
+        assertNull(RuntimeOverrideBuilder.buildDnsOverride(TunMode.Vpn, null, ipv6Enabled = false))
+    }
+
+    @Test
+    fun `root modes clear dns listener and follow the ipv6 toggle`() {
+        // ROOT 的 DNS 应答由 --root-dns 的透明 socket 承担，dns.listen 留空避免与它抢端口
+        val userDns = DnsOverride(enable = true, listen = "0.0.0.0:1053", enhancedMode = "fake-ip")
+        val dns = RuntimeOverrideBuilder.buildDnsOverride(TunMode.RootTproxy, userDns, ipv6Enabled = false)!!
+        assertEquals("", dns.listen)
+        assertEquals(false, dns.ipv6)
+        // 用户的解析策略必须保留
+        assertEquals("fake-ip", dns.enhancedMode)
+        val ipv6 = RuntimeOverrideBuilder.buildDnsOverride(TunMode.RootTun, userDns, ipv6Enabled = true)!!
+        assertEquals(true, ipv6.ipv6)
+    }
+
+    @Test
+    fun `root dns override creates a default base when user dns absent`() {
+        val dns = RuntimeOverrideBuilder.buildDnsOverride(TunMode.RootTun, null, ipv6Enabled = false)!!
+        assertEquals("", dns.listen)
+        assertEquals(false, dns.ipv6)
     }
 
     // === 常量契约 ===
@@ -156,11 +156,5 @@ class RuntimeOverrideBuilderTest {
         // 这里锁住它们相等，避免有人只改一处导致两条 iptables 路径错位
         assertEquals(RootTetherHijacker.TPROXY_PORT, RootTproxyApplier.TPROXY_PORT)
         assertTrue(RuntimeOverrideBuilder.DEFAULT_MIXED_PORT > 0)
-    }
-
-    @Test
-    fun `dns port does not collide with the tproxy inbound port`() {
-        // 两个都是 nat/mangle 重定向目标，撞端口会让 DNS 查询被当普通流量处理
-        assertTrue(RootTproxyApplier.DNS_PORT != RootTproxyApplier.TPROXY_PORT)
     }
 }

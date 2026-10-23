@@ -22,14 +22,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import top.yukonga.mishka.data.database.AppDatabase
 import top.yukonga.mishka.data.database.ImportedDao
 import top.yukonga.mishka.data.database.ImportedEntity
-import top.yukonga.mishka.data.database.AppDatabase
 import top.yukonga.mishka.data.database.PendingDao
 import top.yukonga.mishka.data.database.PendingEntity
+import top.yukonga.mishka.data.database.SelectionDao
 import top.yukonga.mishka.data.database.decodeOverrideIds
 import top.yukonga.mishka.data.database.encodeOverrideIds
-import top.yukonga.mishka.data.database.SelectionDao
 import top.yukonga.mishka.domain.model.ProfileType
 import top.yukonga.mishka.domain.model.Subscription
 import top.yukonga.mishka.domain.model.SubscriptionInfo
@@ -487,7 +487,7 @@ class SubscriptionRepositoryImpl(
             overrideIds = (pending?.overrideIds ?: imported.overrideIds).decodeOverrideIds(),
             overrideSortPreference = (pending?.overrideSortPreference ?: imported.overrideSortPreference).decodeOverrideIds(),
             interval = pending?.interval ?: imported.interval,
-            upload = pending?.upload ?: liveInfo?.Upload ?: imported.upload,
+            upload = liveInfo?.Upload ?: imported.upload,
             download = liveInfo?.Download ?: imported.download,
             total = liveInfo?.Total ?: imported.total,
             expire = liveInfo?.Expire ?: imported.expire,

@@ -1,5 +1,6 @@
 package top.yukonga.mishka.data.repository
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import top.yukonga.mishka.data.api.MihomoApiClient
@@ -43,6 +44,13 @@ class MihomoRepositoryImpl(
     override suspend fun getGroups(): Result<GroupsResponse> = runCatching { apiClient.getGroups() }
     override suspend fun selectProxy(group: String, name: String): Result<Unit> = runCatching { apiClient.selectProxy(group, name) }
     override suspend fun unfixProxy(group: String): Result<Unit> = runCatching { apiClient.unfixProxy(group) }
+    override suspend fun getGroupDelay(
+        name: String,
+        testUrl: String,
+        timeout: Int,
+    ): Result<Map<String, Int>> =
+        runCatching { apiClient.getGroupDelay(name, testUrl, timeout) }
+
     override suspend fun getProxyDelay(
         name: String,
         testUrl: String,
@@ -70,6 +78,10 @@ class MihomoRepositoryImpl(
 
     override suspend fun updateRuleProvider(name: String): Result<Unit> = runCatching { apiClient.updateRuleProvider(name) }
     override suspend fun queryDns(name: String, type: String): Result<DnsQueryResponse> = runCatching { apiClient.queryDns(name, type) }
+    override suspend fun updateSystemDns(servers: List<String>): Result<Unit> =
+        runCatching { apiClient.updateSystemDns(servers) }
+            .onFailure { if (it is CancellationException) throw it }
+
     override suspend fun flushFakeIp(): Result<Unit> = runCatching { apiClient.flushFakeIp() }
     override suspend fun flushDnsCache(): Result<Unit> = runCatching { apiClient.flushDnsCache() }
 

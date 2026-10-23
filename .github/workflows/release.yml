@@ -43,7 +43,7 @@ jobs:
 
       - name: Run native tests
         working-directory: app/src/main/native/mishka_core
-        run: go test ./... -count=1
+        run: go test -tags mishka ./... -count=1
 
       - name: Run unit tests
         run: ./gradlew :app:testDebugUnitTest -x buildMihomo_arm64_v8a --no-daemon

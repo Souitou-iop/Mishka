@@ -88,11 +88,17 @@ object StorageKeys {
     // 代理页设置
     const val PROXY_NODE_SORT_OPTION = "proxy_node_sort_option"
 
+    const val PROXY_GROUP_SHOW_ICONS = "proxy_group_show_icons"
+
     // 节点单列显示，默认 false（每行 2 个）
     const val PROXY_NODE_SINGLE_COLUMN = "proxy_node_single_column"
 
     // 非全局模式下 GLOBAL 组是否留在列表里；全局模式无视此开关强制显示
     const val PROXY_SHOW_GLOBAL_GROUP = "proxy_show_global_group"
+
+    // 外部应用能否通过 intent 控制代理，默认关。四个导出 action 没有调用方校验，任何应用都能发；
+    // 磁贴由系统绑定、内部跳板走应用内调用，两者都不经过此开关
+    const val EXTERNAL_CONTROL_ALLOWED = "external_control_allowed"
 
     // Tailscale 出站
     const val TAILSCALE_ENABLED = "tailscale_enabled"

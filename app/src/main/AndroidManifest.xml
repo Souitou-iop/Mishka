@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <!-- Android 17 跨资料 loopback 需要用户通过 ADB 显式授予，普通单用户不依赖它。 -->
+    <uses-permission
+        android:name="android.permission.INTERACT_ACROSS_USERS"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -76,6 +80,39 @@
                 <data android:scheme="clash" />
                 <data android:scheme="clashmeta" />
                 <data android:host="install-config" />
+            </intent-filter>
+        </activity>
+
+        <!-- 必须有窗口（透明主题）：Android 12 起后台应用不能启动前台服务，「应用有一个 Activity
+             被启动」正是拿到豁免的条件 —— Theme.NoDisplay 或 BroadcastReceiver 都会让「启动」静默失败。
+             空 taskAffinity 让本类不属于任何 task，NEW_TASK 启动时系统只能新建，主界面不会被前置；
+             只照抄 Activity 声明本身实测挡不住（已装包复现）。 -->
+        <activity
+            android:name=".ExternalControlActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.Mishka.Transparent">
+            <intent-filter>
+                <action android:name="top.yukonga.mishka.action.START_PROXY" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="top.yukonga.mishka.action.STOP_PROXY" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="top.yukonga.mishka.action.TOGGLE_PROXY" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="top.yukonga.mishka.action.RESTART_PROXY" />
+
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 

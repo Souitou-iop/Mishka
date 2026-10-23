@@ -36,6 +36,12 @@ interface MihomoRepository {
     suspend fun getGroups(): Result<GroupsResponse>
     suspend fun selectProxy(group: String, name: String): Result<Unit>
     suspend fun unfixProxy(group: String): Result<Unit>
+    suspend fun getGroupDelay(
+        name: String,
+        testUrl: String = "http://www.gstatic.com/generate_204",
+        timeout: Int = 5000,
+    ): Result<Map<String, Int>>
+
     suspend fun getProxyDelay(
         name: String,
         testUrl: String = "http://www.gstatic.com/generate_204",
@@ -58,6 +64,7 @@ interface MihomoRepository {
     suspend fun getRuleProviders(): Result<RuleProvidersResponse>
     suspend fun updateRuleProvider(name: String): Result<Unit>
     suspend fun queryDns(name: String, type: String = "A"): Result<DnsQueryResponse>
+    suspend fun updateSystemDns(servers: List<String>): Result<Unit>
     suspend fun flushFakeIp(): Result<Unit>
     suspend fun flushDnsCache(): Result<Unit>
 

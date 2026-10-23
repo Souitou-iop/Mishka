@@ -7,13 +7,14 @@ import "C"
 
 import (
 	"fmt"
+	"github.com/metacubex/mihomo/component/age"
+	"github.com/metacubex/mihomo/component/http"
+	"github.com/metacubex/mihomo/component/resolver"
+	"github.com/metacubex/mihomo/constant"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"unsafe"
-	"github.com/metacubex/mihomo/component/age"
-	"github.com/metacubex/mihomo/component/http"
-	"github.com/metacubex/mihomo/constant"
 )
 
 // panic 逸出 //export 边界会终止宿主进程——JNI 是 in-process，死的是整个 app。
@@ -39,6 +40,7 @@ func mishkaCoreInit(homeDir *C.char, userAgent *C.char) {
 	// homeDir 决定 mihomo 读 GeoIP/GeoSite/ASN 数据库的位置；进程级全局，只设一次。
 	initOnce.Do(func() {
 		constant.SetHomeDir(C.GoString(homeDir))
+		resolver.DisableIPv6 = false
 	})
 	ua := C.GoString(userAgent)
 	if ua != "" {
@@ -47,9 +49,9 @@ func mishkaCoreInit(homeDir *C.char, userAgent *C.char) {
 	}
 }
 
-//export mishkaFreeString
-//
 // Go 通过 C.CString 分配并返回的 C 字符串必须由 Go 释放，C 侧调 free() 会破坏 cgo runtime 堆。
+//
+//export mishkaFreeString
 func mishkaFreeString(s *C.char) {
 	if s != nil {
 		C.free(unsafe.Pointer(s))
@@ -75,10 +77,10 @@ func mishkaQueryProgress(token C.int) *C.char {
 	return nil
 }
 
-//export mishkaSetAgeSecretKey
-//
 // 设置进程级 age 解密密钥，供订阅导入解密 age armor 加密的配置；传空字符串清除。
 // fetchAndValid 由 processLock 串行执行，调用方在 fetch 前设置、fetch 后清空，互不污染。
+//
+//export mishkaSetAgeSecretKey
 func mishkaSetAgeSecretKey(cKey *C.char) {
 	key := strings.TrimSpace(C.GoString(cKey))
 	if key == "" {
@@ -88,10 +90,10 @@ func mishkaSetAgeSecretKey(cKey *C.char) {
 	}
 }
 
-//export mishkaGenAgeKeyPair
-//
 // 生成 x25519 age 密钥对，返回 "secretKey\npublicKey"；失败返回 "error: ..."。
 // 调用方必须 mishkaFreeString 释放返回值。
+//
+//export mishkaGenAgeKeyPair
 func mishkaGenAgeKeyPair() *C.char {
 	return guardString(func() string {
 		sk, pk, err := age.GenX25519KeyPair()
@@ -102,10 +104,10 @@ func mishkaGenAgeKeyPair() *C.char {
 	})
 }
 
-//export mishkaGenAgeHybridKeyPair
-//
 // 生成 mlkem768-x25519 抗量子 age 密钥对，返回 "secretKey\npublicKey"；失败返回 "error: ..."。
 // 调用方必须 mishkaFreeString 释放返回值。
+//
+//export mishkaGenAgeHybridKeyPair
 func mishkaGenAgeHybridKeyPair() *C.char {
 	return guardString(func() string {
 		sk, pk, err := age.GenHybridKeyPair()

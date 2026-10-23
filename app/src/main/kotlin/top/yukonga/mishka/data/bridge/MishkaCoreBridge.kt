@@ -37,7 +37,6 @@ data class CoreFetchResult(
 @Serializable
 private data class TransformCheck(val valid: Boolean = false)
 
-
 class MishkaCoreError(message: String) : RuntimeException(message)
 
 object MishkaCoreBridge {
@@ -53,6 +52,13 @@ object MishkaCoreBridge {
 
     fun init(homeDir: String, userAgent: String) {
         nativeCoreInit(homeDir, userAgent)
+    }
+
+    fun updateSystemDns(servers: List<String>) {
+        val result = nativeUpdateSystemDns(servers.joinToString(","))
+            ?: throw MishkaCoreError("native returned empty system DNS result")
+        if (result.startsWith("error:")) throw MishkaCoreError(result.removePrefix("error:").trim())
+        if (result != "ok") throw MishkaCoreError("invalid system DNS result: $result")
     }
 
     suspend fun fetchAndValid(
@@ -145,6 +151,9 @@ object MishkaCoreBridge {
 
     @JvmStatic
     private external fun nativeCoreInit(homeDir: String, userAgent: String)
+
+    @JvmStatic
+    private external fun nativeUpdateSystemDns(servers: String): String?
 
     @JvmStatic
     private external fun nativeFetchAndValid(

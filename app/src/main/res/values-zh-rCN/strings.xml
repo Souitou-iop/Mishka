@@ -47,9 +47,18 @@
     <!-- Deep Link Import -->
     <string name="deep_link_invalid">无效的订阅导入链接</string>
 
+    <!-- Automation -->
+    <string name="external_proxy_started">代理已启动</string>
+    <string name="external_proxy_stopped">代理已停止</string>
+    <string name="external_proxy_already_running">代理已在运行</string>
+    <string name="external_proxy_restarted">代理已重启</string>
+    <string name="external_proxy_not_running">代理未运行</string>
+
     <!-- Service Errors -->
     <string name="error_vpn_failed">VPN 建立失败: %1$s</string>
     <string name="error_vpn_denied">VPN 权限被拒绝</string>
+    <string name="error_vpn_no_selected_apps">请至少选择一个已安装且不是 Mishka 的应用，再启动 VPN</string>
+    <string name="error_vpn_not_ready">VPN 启动未完成，或控制 API 不可用</string>
     <string name="error_start_failed">启动失败</string>
     <string name="error_root_failed">无法获取 Root 权限</string>
     <string name="error_mihomo_not_found">mihomo 二进制文件未找到</string>
@@ -77,6 +86,10 @@
     <string name="common_save">保存</string>
     <string name="common_back">返回</string>
     <string name="common_refresh">刷新</string>
+    <string name="refresh_pulling">下拉刷新</string>
+    <string name="refresh_release">松开刷新</string>
+    <string name="refresh_refreshing">刷新中…</string>
+    <string name="refresh_complete">刷新完成</string>
     <string name="common_more">更多</string>
     <string name="common_close">关闭</string>
     <string name="common_delete">删除</string>
@@ -166,9 +179,8 @@
     <string name="proxy_start_first">请先启动代理服务</string>
     <string name="proxy_mode_direct_hint">当前为直连模式，所有流量不经代理。此处的选择会被保存，切回规则模式后生效。</string>
     <string name="proxy_mode_global_hint">当前为全局模式，仅 GLOBAL 组决定出口。其他代理组的选择切回规则模式后生效。</string>
-    <string name="proxy_refresh_icon">刷新图标</string>
     <string name="proxy_single_column">单列显示</string>
-    <string name="proxy_show_global_group">GLOBAL 组</string>
+    <string name="proxy_show_group_icons">显示图标</string>
     <string name="proxy_timeout">超时</string>
     <string name="proxy_sort_title">排序</string>
     <string name="proxy_sort_default">默认</string>
@@ -508,6 +520,13 @@
     <string name="external_control_controller_hint">HTTP API 的监听地址（例如 127.0.0.1:9090）。0.0.0.0 将被自动覆写为 127.0.0.1。</string>
     <string name="external_control_secret">API 密钥</string>
     <string name="external_control_secret_hint">HTTP API 的 Bearer 鉴权令牌。留空时优先使用订阅配置中的 secret；若订阅未设置则随机生成。</string>
+    <string name="automation_title">自动化</string>
+    <string name="settings_automation_summary">允许其他应用控制代理</string>
+    <string name="automation_allow_external">允许外部应用控制</string>
+    <string name="automation_allow_external_summary">允许其他应用通过 intent 启动、停止、切换和重启代理</string>
+    <string name="automation_actions_hint">支持的动作：START_PROXY / STOP_PROXY / TOGGLE_PROXY / RESTART_PROXY。</string>
+    <string name="automation_result_hint">动作完成时调用方收到 RESULT_OK；请求被拒绝、代理处于过渡态或无可用订阅时收到 RESULT_CANCELED。</string>
+    <string name="automation_scope_hint">关闭后，快捷设置磁贴与应用内控制照常工作，它们不经过此开关。</string>
     <string name="settings_external_control_summary">覆写外部控制器配置</string>
 
     <!-- File Manager -->
