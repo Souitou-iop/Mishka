@@ -3,6 +3,7 @@ package top.yukonga.mishka.data.backup
 import android.util.Base64
 import android.util.Xml
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.ProxyBuilder
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.header
@@ -13,6 +14,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.Url
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
@@ -54,6 +56,7 @@ class WebDavClient(
     baseUrl: String,
     username: String,
     password: String,
+    private val proxyUrl: String? = null,
 ) {
     private val root = baseUrl.trim().trimEnd('/')
     private val legacyDirUrl = "$root/$LEGACY_DIR/"
@@ -69,6 +72,11 @@ class WebDavClient(
         install(HttpTimeout) {
             connectTimeoutMillis = 15_000
             requestTimeoutMillis = 300_000
+        }
+        // Mishka 自身流量绕过 TUN；WebDAV 服务器常在境外，且本机 DNS 被 fake-ip 污染时直连
+        // 必超时（连到 fake-ip 上无人应答），代理运行时经 mixed-port 出网由 mihomo 自行解析
+        if (proxyUrl != null) {
+            engine { proxy = ProxyBuilder.http(Url(proxyUrl)) }
         }
     }
 

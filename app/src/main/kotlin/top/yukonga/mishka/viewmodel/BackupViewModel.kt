@@ -15,8 +15,10 @@ import top.yukonga.mishka.R
 import top.yukonga.mishka.data.backup.BackupManager
 import top.yukonga.mishka.data.backup.BackupRestoreResult
 import top.yukonga.mishka.data.backup.RemoteBackup
+import top.yukonga.mishka.data.backup.WebDavAutoSyncManager
 import top.yukonga.mishka.data.backup.WebDavClient
 import top.yukonga.mishka.data.backup.WebDavStaleException
+import top.yukonga.mishka.data.repository.SubscriptionProxyResolver
 import top.yukonga.mishka.platform.PlatformStorage
 import top.yukonga.mishka.platform.ProxyServiceBridge
 import top.yukonga.mishka.platform.ProxyState
@@ -31,18 +33,30 @@ data class BackupUiState(
     val restoreCompleted: Boolean = false,
     val restoreNeedsTailscaleReauth: Boolean = false,
     val remoteSnapshots: List<RemoteBackup> = emptyList(),
+    /** 远端存在更新的快照（其他设备推送过）；非空时备份页显示恢复提示。 */
+    val remoteUpdateVersion: Long? = null,
 )
 
 class BackupViewModel(
     private val backupManager: BackupManager,
     private val storage: PlatformStorage,
+    private val autoSync: WebDavAutoSyncManager,
+    private val proxyResolver: SubscriptionProxyResolver,
     private val context: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(BackupUiState())
     val uiState: StateFlow<BackupUiState> = _uiState.asStateFlow()
 
-    private fun client(): WebDavClient? {
+    init {
+        viewModelScope.launch {
+            autoSync.state.collect { sync ->
+                _uiState.update { it.copy(remoteUpdateVersion = sync.remoteUpdateVersion) }
+            }
+        }
+    }
+
+    private suspend fun client(): WebDavClient? {
         val url = storage.getString(StorageKeys.WEBDAV_URL, "").trim()
         val user = storage.getString(StorageKeys.WEBDAV_USERNAME, "")
         val pass = storage.getString(StorageKeys.WEBDAV_PASSWORD, "")
@@ -50,7 +64,9 @@ class BackupViewModel(
             showToast(context.getString(R.string.backup_missing_credentials))
             return null
         }
-        return WebDavClient(url, user, pass)
+        // 与自动同步同源：代理运行时走 mixed-port，直连仅作代理不可用时的回退
+        val proxyUrl = runCatching { proxyResolver.resolve(requireUserToggle = false) }.getOrNull()
+        return WebDavClient(url, user, pass, proxyUrl)
     }
 
     fun testConnection() = runBusy {

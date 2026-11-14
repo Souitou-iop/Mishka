@@ -213,6 +213,18 @@ class PlatformStorage(context: Context) {
     /** 全量导出（WebDAV 备份用）；Mishka 只写 String / Set<String> 两种类型。 */
     fun dumpAll(): Map<String, Any?> = prefs.all
 
+    /**
+     * 监听 prefs 变化（回调在主线程，key 可能为 null 表示清空，此处过滤掉）。
+     * 返回反注册函数；调用方须持有返回值，否则监听器会被 GC 回收而静默失效。
+     */
+    fun registerChangeListener(listener: (key: String) -> Unit): () -> Unit {
+        val impl = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            key?.let(listener)
+        }
+        prefs.registerOnSharedPreferenceChangeListener(impl)
+        return { prefs.unregisterOnSharedPreferenceChangeListener(impl) }
+    }
+
     private companion object {
         const val TAILSCALE_GENERATED_PATH = "mihomo/tailscale.generated.js"
     }

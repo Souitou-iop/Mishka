@@ -125,6 +125,27 @@ fun BackupRestoreScreen(
                 HintCard(text = stringResource(R.string.backup_hint))
             }
             groupedCardItems(
+                keyPrefix = "remote_update",
+                outerBottomPadding = 12.dp,
+                items = buildList {
+                    uiState.remoteUpdateVersion?.let { version ->
+                        add(
+                            CardItem("banner") {
+                                ArrowPreference(
+                                    title = stringResource(R.string.backup_remote_update_title, version),
+                                    summary = stringResource(R.string.backup_remote_update_summary),
+                                    enabled = !uiState.isBusy,
+                                    holdDownState = pendingRestoreAction != null,
+                                    onClick = {
+                                        pendingRestoreAction = { viewModel.restore() }
+                                    },
+                                )
+                            },
+                        )
+                    }
+                },
+            )
+            groupedCardItems(
                 keyPrefix = "backup_entries",
                 outerBottomPadding = 12.dp,
                 items = listOf(

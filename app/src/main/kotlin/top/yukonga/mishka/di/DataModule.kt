@@ -90,6 +90,7 @@ val dataModule = module {
             backupManager = get(),
             bootStartManager = get(),
             wifiPolicyController = get(),
+            proxyResolver = get(),
         )
     }
 }

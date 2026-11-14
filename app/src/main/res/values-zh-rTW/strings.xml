@@ -551,6 +551,8 @@
     <string name="backup_now">備份至 WebDAV</string>
     <string name="backup_restore_now">從 WebDAV 還原</string>
     <string name="backup_remote_newer">遠端存在較新的快照，請先還原後再備份。</string>
+    <string name="backup_remote_update_title">其他裝置推送了新快照（v%1$d）</string>
+    <string name="backup_remote_update_summary">點擊還原以同步變更</string>
     <string name="backup_export_legacy_done">原版相容備份已匯出</string>
     <string name="backup_export_legacy_confirm_summary">這會取代原版使用的 Mishka/mishka-backup.zip，但不會刪除新版的快照歷史。是否繼續？</string>
     <string name="backup_export_legacy_confirm_title">匯出原版相容備份</string>

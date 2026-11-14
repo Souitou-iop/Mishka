@@ -34,6 +34,7 @@ import org.koin.android.ext.android.get
 import top.yukonga.mishka.data.api.MihomoConnectionManager
 import top.yukonga.mishka.data.repository.ProfileProcessor
 import top.yukonga.mishka.data.repository.SubscriptionProxyResolver
+import top.yukonga.mishka.data.backup.WebDavAutoSyncManager
 import top.yukonga.mishka.platform.AndroidWifiPolicy
 import top.yukonga.mishka.platform.BootStartManager
 import top.yukonga.mishka.platform.FilePicker
@@ -77,6 +78,7 @@ data class ShortcutNavigation(val page: Int? = null, val route: Route? = null)
 class MainActivity : ComponentActivity() {
 
     private lateinit var serviceController: ProxyServiceController
+    private lateinit var autoSyncManager: WebDavAutoSyncManager
     private lateinit var homeViewModel: HomeViewModel
     private lateinit var subscriptionViewModel: SubscriptionViewModel
     private lateinit var overrideProfileViewModel: OverrideProfileViewModel
@@ -207,6 +209,7 @@ class MainActivity : ComponentActivity() {
         top.yukonga.mishka.ui.platform.IconLoader.init(appScope) {
             iconProxyResolver.resolve(requireUserToggle = false)
         }
+        autoSyncManager = get()
 
         logViewModel = get()
         providerViewModel = get()
@@ -466,6 +469,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         homeViewModel.setUiVisible(true)
+        autoSyncManager.onAppForeground()
     }
 
     // controller 是 Koin single 随进程存活，不解绑就一直强引用已销毁的 Activity 与整棵

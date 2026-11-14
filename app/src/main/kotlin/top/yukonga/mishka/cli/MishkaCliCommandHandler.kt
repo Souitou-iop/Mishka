@@ -27,6 +27,7 @@ import top.yukonga.mishka.data.backup.WebDavClient
 import top.yukonga.mishka.data.diagnostics.ConfigDiagnosticsBuilder
 import top.yukonga.mishka.data.repository.OverrideJsonStore
 import top.yukonga.mishka.data.repository.ProfileProcessor
+import top.yukonga.mishka.data.repository.SubscriptionProxyResolver
 import top.yukonga.mishka.data.store.OverrideProfileStore
 import top.yukonga.mishka.domain.model.ConfigValidationResult
 import top.yukonga.mishka.domain.model.ConfigurationOverride
@@ -65,6 +66,7 @@ class MishkaCliCommandHandler(
     private val backupManager: BackupManager,
     private val bootStartManager: BootStartManager,
     private val wifiPolicyController: WifiPolicyController,
+    private val proxyResolver: SubscriptionProxyResolver,
 ) {
 
     private val json = Json {
@@ -483,14 +485,16 @@ class MishkaCliCommandHandler(
         }
     }
 
-    private fun webDavClient(): WebDavClient {
+    private suspend fun webDavClient(): WebDavClient {
         val url = storage.getString(StorageKeys.WEBDAV_URL, "").trim()
         val username = storage.getString(StorageKeys.WEBDAV_USERNAME, "")
         val password = storage.getString(StorageKeys.WEBDAV_PASSWORD, "")
         require(url.isNotBlank() && username.isNotBlank() && password.isNotBlank()) {
             "WebDAV credentials are not configured"
         }
-        return WebDavClient(url, username, password)
+        // Mishka 自身流量绕过 TUN：代理运行时经 mixed-port 出网，避免直连被 fake-ip DNS 污染
+        val proxyUrl = runCatching { proxyResolver.resolve(requireUserToggle = false) }.getOrNull()
+        return WebDavClient(url, username, password, proxyUrl)
     }
 
     private suspend fun webDavTest(): JsonObject {

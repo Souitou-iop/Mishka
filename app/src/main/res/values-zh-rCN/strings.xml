@@ -551,6 +551,8 @@
     <string name="backup_now">备份到 WebDAV</string>
     <string name="backup_restore_now">从 WebDAV 恢复</string>
     <string name="backup_remote_newer">远端存在更新的快照，请先恢复后再备份。</string>
+    <string name="backup_remote_update_title">其他设备推送了新快照（v%1$d）</string>
+    <string name="backup_remote_update_summary">点击恢复以同步更改</string>
     <string name="backup_export_legacy_done">原版兼容备份已导出</string>
     <string name="backup_export_legacy_confirm_summary">这会替换原版使用的 Mishka/mishka-backup.zip，但不会删除新版的快照历史。是否继续？</string>
     <string name="backup_export_legacy_confirm_title">导出原版兼容备份</string>

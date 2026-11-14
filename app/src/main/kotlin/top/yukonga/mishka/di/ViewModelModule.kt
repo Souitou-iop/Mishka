@@ -55,5 +55,5 @@ val viewModelModule = module {
     single { ConnectionViewModel() }
     single { DnsQueryViewModel() }
     single { DiagnosticsViewModel(get()) }
-    single { BackupViewModel(get(), get(), androidContext()) }
+    single { BackupViewModel(get(), get(), get(), get(), androidContext()) }
 }

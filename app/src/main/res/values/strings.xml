@@ -553,6 +553,8 @@
     <string name="backup_now">Back up to WebDAV</string>
     <string name="backup_restore_now">Restore from WebDAV</string>
     <string name="backup_remote_newer">A newer remote snapshot exists. Restore it before backing up.</string>
+    <string name="backup_remote_update_title">New snapshot from another device (v%1$d)</string>
+    <string name="backup_remote_update_summary">Tap to restore and sync the changes</string>
     <string name="backup_export_legacy_done">Original-compatible backup exported</string>
     <string name="backup_export_legacy_confirm_summary">This replaces the legacy Mishka/mishka-backup.zip file used by the original app. New snapshot history remains intact. Continue?</string>
     <string name="backup_export_legacy_confirm_title">Export original-compatible backup</string>

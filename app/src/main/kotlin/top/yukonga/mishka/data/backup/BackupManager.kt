@@ -529,7 +529,9 @@ class BackupManager(
          *
          * **新增任何运行时态 key 都要补进本名单**，否则它会随备份跨设备漂移。
          */
-        private val EXCLUDED_PREF_KEYS = setOf(
+        // 非 private：WebDavAutoSyncManager 用同一份清单过滤 prefs 变化源，
+        // 运行时态键的写入不得触发自动推送
+        val EXCLUDED_PREF_KEYS = setOf(
             StorageKeys.SERVICE_WAS_RUNNING,
             StorageKeys.HAS_ROOT,
             StorageKeys.ROOT_MIHOMO_PID,

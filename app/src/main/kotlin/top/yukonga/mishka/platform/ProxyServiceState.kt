@@ -52,6 +52,11 @@ object ProxyServiceBridge {
         restoreInProgress = false
     }
 
+    /** 恢复窗口占用中（含三表重放与文件换入）；自动同步据此抑制期间的变更推送。 */
+    fun isRestoreWindowHeld(): Boolean = synchronized(maintenanceMonitor) {
+        restoreInProgress
+    }
+
     /**
      * 在与恢复准入相同的监视器下派发一次启动/重启请求。当前所有代理启动入口都经过
      * [ProxyServiceController]，因此门控落在共享命令边界，不会串行化无关 CLI 命令或停止请求。
