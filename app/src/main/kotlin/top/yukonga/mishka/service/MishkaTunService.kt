@@ -363,7 +363,9 @@ class MishkaTunService : VpnService() {
         // 开关控制的是额外 DNS 的劫持范围，虚拟 DNS 本身始终对应用可用。
         addDnsServer(RuntimeOverrideBuilder.VPN_DNS)
         if (ipv6) addDnsServer(RuntimeOverrideBuilder.VPN_DNS6)
-        if (storage.getString(StorageKeys.VPN_ALLOW_BYPASS, "true") == "true") allowBypass()
+        // WebRTC/STUN and other apps can explicitly bind the underlying network when this
+        // flag is enabled, which defeats the full-device VPN route. Keep bypass opt-in.
+        if (storage.getString(StorageKeys.VPN_ALLOW_BYPASS, "false") == "true") allowBypass()
 
         val packages = storage.getStringSet(StorageKeys.APP_PROXY_PACKAGES, emptySet())
         when (storage.getString(StorageKeys.APP_PROXY_MODE, "AllowAll")) {

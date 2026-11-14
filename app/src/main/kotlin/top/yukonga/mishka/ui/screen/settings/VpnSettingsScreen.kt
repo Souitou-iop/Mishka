@@ -50,7 +50,7 @@ fun VpnSettingsScreen(
     val scrollBehavior = MiuixScrollBehavior()
 
     var bypassPrivate by remember { mutableStateOf(storage.getString(StorageKeys.VPN_BYPASS_PRIVATE_NETWORK, "true") == "true") }
-    var allowBypass by remember { mutableStateOf(storage.getString(StorageKeys.VPN_ALLOW_BYPASS, "true") == "true") }
+    var allowBypass by remember { mutableStateOf(storage.getString(StorageKeys.VPN_ALLOW_BYPASS, "false") == "true") }
     var dnsHijacking by remember { mutableStateOf(storage.getString(StorageKeys.VPN_DNS_HIJACKING, "true") != "false") }
     var systemProxy by remember { mutableStateOf(storage.getString(StorageKeys.VPN_SYSTEM_PROXY, "true") != "false") }
     var allowIpv6 by remember { mutableStateOf(storage.getString(StorageKeys.VPN_ALLOW_IPV6, "false") == "true") }
